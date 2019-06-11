@@ -23,9 +23,9 @@
 __authors__ = "W. Terink, A. Lutz, G. Simons, W. Immerzeel and P. Droogers"
 __copyright__ = "FutureWater"
 __license__ = "GPL"
-__version__ = "2.1"
+__version__ = "2.2"
 __email__ = "info@futurewater.nl"
-__date__ ='1 January 2017'
+__date__ ='23 December 2017'
 ############################################################################################
 
 print 'Lake module imported'
