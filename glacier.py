@@ -2,7 +2,7 @@
 # A spatially distributed hydrological model that calculates soil-water and
 # cryosphere processes on a cell-by-cell basis.
 #
-# Copyright (C) 2013  Wilco Terink
+# Copyright (C) 2013  FutureWater
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,14 +17,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-# Email: w.terink@futurewater.nl OR terinkw@gmail.com
+# Email: info@futurewater.nl
 
 #-Authorship information-###################################################################
-__author__ = "Wilco Terink"
-__copyright__ = "Wilco Terink"
+__authors__ = "W. Terink, A. Lutz, G. Simons, W. Immerzeel and P. Droogers"
+__copyright__ = "FutureWater"
 __license__ = "GPL"
-__version__ = "2.0"
-__email__ = "w.terink@futurewater.nl, terinkw@gmail.com"
+__version__ = "2.1"
+__email__ = "info@futurewater.nl"
 __date__ ='1 January 2017'
 ############################################################################################
 

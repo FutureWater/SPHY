@@ -23,10 +23,11 @@
 __authors__ = "W. Terink, A. Lutz, G. Simons, W. Immerzeel and P. Droogers"
 __copyright__ = "FutureWater"
 __license__ = "GPL"
-__version__ = "2.0"
+__version__ = "2.1"
 __email__ = "info@futurewater.nl"
 __date__ ='1 January 2017'
 ############################################################################################
+
 #-Function to calculate rootzone runoff
 def RootRunoff(pcr, rainfrac, rootwater, rootsat):
     rootrunoff = pcr.ifthenelse(rainfrac > 0, pcr.max(rootwater - rootsat, 0), 0)
