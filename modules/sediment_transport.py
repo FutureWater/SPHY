@@ -206,8 +206,8 @@ def init(self, pcr, config, csv, np):
 
         #-Determine flow velocity after harvest, manning for tilled conditions is used
         if self.harvest_FLAG:
-            self.n_veg_TC_harvest = self.mmf.manningVegetation(self, pcr, self.d_field, self.Diameter_harvest, self.NoElements_harvest)
-            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_field_harvest)
+            self.n_veg_TC_harvest = self.mmf.manningVegetation(self, pcr, self.d_TC, self.Diameter_harvest, self.NoElements_harvest)
+            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_TC_harvest)
             self.n_TC_harvest = (self.n_soil**2 + self.n_veg_TC_harvest**2)**0.5
             #-set manning value of channels to predetermined value
             if self.manningChannelsFLAG == 1:
