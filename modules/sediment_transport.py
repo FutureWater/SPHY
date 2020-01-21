@@ -84,9 +84,6 @@ def SedTrans(self, pcr, np, sed, TC):
 
                     #-store trapped sediment in sedimentYield (multiply routed sediment value with trapping efficiency to be stored in reservoir cell)
                     sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.TrappingEff, sedimentYield)
-                    
-                    #-determine sediment flux (multiply routed sediment value with outflow efficiency)
-                    sedimentFlux = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.OutflowEff, sedimentFlux)
 
                     #-update subFinished and give subcatchment cells value 1
                     subFinished = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(1), subFinished)
@@ -99,12 +96,18 @@ def SedTrans(self, pcr, np, sed, TC):
                     #-create boolean map with location of reservoir
                     stepBool = stepBool + pcr.scalar(pcr.ifthenelse(self.subcatchmentRes == int(self.subcatchmentOrder[subcatchment]), self.subcatchmentRes == int(self.subcatchmentOrder[subcatchment]), pcr.boolean(0)))
 
-                #-determine sediment flux at stations which are not a reservoirs
-                sedimentFlux = pcr.ifthenelse(self.LocationsNoResSteps == (step + 1), sedTransCapFlux, sedimentFlux)
+                # store sedTransCapFlux in sedimentFlux
+                sedimentFlux = sedTransCapFlux * subFinished + sedimentFlux
 
                 #-rout sediment based on transport capacity
                 sedDep = sedDep + sedTransCapState * stepBool
 
+            #-rout sediment based on transport capacity
+            sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
+
+            # store sedTransCapFlux in sedimentFlux
+            sedimentFlux = sedTransCapFlux * (1 - subFinished) + sedimentFlux
+    
     return sedimentYield, sedDep, sedimentFlux
 
 
@@ -206,8 +209,8 @@ def init(self, pcr, config, csv, np):
 
         #-Determine flow velocity after harvest, manning for tilled conditions is used
         if self.harvest_FLAG:
-            self.n_veg_TC_harvest = self.mmf.manningVegetation(self, pcr, self.d_TC, self.Diameter_harvest, self.NoElements_harvest)
-            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_TC_harvest)
+            self.n_veg_TC_harvest = self.mmf.manningVegetation(self, pcr, self.d_field, self.Diameter_harvest, self.NoElements_harvest)
+            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_field_harvest)
             self.n_TC_harvest = (self.n_soil**2 + self.n_veg_TC_harvest**2)**0.5
             #-set manning value of channels to predetermined value
             if self.manningChannelsFLAG == 1:
@@ -269,5 +272,5 @@ def dynamic_mmf(self, pcr, Runoff, np, G):
     #-report sediment yield in the stations (ton/day)
     self.reporting.reporting(self, pcr, 'SedYld', sedYield)
 
-    #-report sediment yield in the stations (ton/day)
+    #-report sediment flux in the stations (ton/day)
     self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
