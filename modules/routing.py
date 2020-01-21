@@ -79,3 +79,5 @@ def dynamic(self, pcr, TotR):
             self.reporting.reporting(self, pcr, i + 'RAtot', ParsRA)
             if self.mm_rep_FLAG == 1 and getattr(self, 'Q' + i.upper() + '_mm_FLAG') == 1:
                 setattr(self, 'Q' + i.upper() + 'SubBasinTSS.sample', ((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
+                    
+    return Q

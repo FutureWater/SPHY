@@ -785,7 +785,7 @@ class sphy(pcrm.DynamicModel):
 
 		#-Normal routing module
 		elif self.RoutFLAG == 1:
-			self.routing.dynamic(self, pcr, TotR)
+			Q = self.routing.dynamic(self, pcr, TotR)
 			
 			if self.GlacFLAG:
 				#-read dynamic reporting processes glacier
