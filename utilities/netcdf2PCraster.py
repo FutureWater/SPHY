@@ -106,10 +106,10 @@ def netcdf2pcrInit(self, pcr, forcing):
         indicesLR = closest_node((xLRCloneInput,yLRCloneInput), xyLatLon)
 
         #-determine indices of the corners of netcdf grid corresponding to model grid (+ buffer)
-        xyUL = min(indicesUL[0], indicesLL[0], indicesUR[0], indicesLR[0]) - 2 
-        xyLL = max(indicesUL[0], indicesLL[0], indicesUR[0], indicesLR[0]) + 2 
-        xyUR = min(indicesUL[1], indicesLL[1], indicesUR[1], indicesLR[1]) - 2 
-        xyLR = max(indicesUL[1], indicesLL[1], indicesUR[1], indicesLR[1]) + 2 
+        xyUL = max(min(indicesUL[0], indicesLL[0], indicesUR[0], indicesLR[0]) - 2, 0)
+        xyLL = min(max(indicesUL[0], indicesLL[0], indicesUR[0], indicesLR[0]) + 2, xLatLon.shape[0] - 1)
+        xyUR = max(min(indicesUL[1], indicesLL[1], indicesUR[1], indicesLR[1]) - 2, 0)
+        xyLR = min(max(indicesUL[1], indicesLL[1], indicesUR[1], indicesLR[1]) + 2, xLatLon.shape[1] - 1)
 
         #-determine x,y-coordinates corresponding to model grid (+ buffer) from netcdf grid
         x = xLatLon[xyUL:(xyLL + 1), xyUR:(xyLR + 1)]
