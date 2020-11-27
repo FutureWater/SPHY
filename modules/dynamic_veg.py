@@ -43,18 +43,8 @@ def Inter_function(pcr, S, Smax, Etr):
 
 #-init processes dynamic vegetation
 def init(self, pcr, config):
-    #-read flag for NDVI forcing by netcdf
-    self.NDVINetcdfFLAG = config.getint('DYNVEG', 'NDVINetcdfFLAG')
-
-    if self.NDVINetcdfFLAG == 1:
-        #-read configuration for forcing by netcdf
-        self.netcdf2PCraster.getConfigNetcdf(self, config, 'NDVI', 'DYNVEG')
-
-        #-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-        self.netcdf2PCraster.netcdf2pcrInit(self, pcr, 'NDVI')
-    else:
-        #-set the ndvi map series to be read
-        self.ndvi = self.inpath + config.get('DYNVEG', 'NDVI')
+    #-set the ndvi map series to be read
+    self.ndvi = self.inpath + config.get('DYNVEG', 'NDVI')
     #-read the vegetation parameters
     LAImax_table = self.inpath + config.get('DYNVEG', 'LAImax')
     self.LAImax = pcr.lookupscalar(LAImax_table, self.LandUse)
@@ -76,21 +66,11 @@ def initial(self, pcr):
 
 #-dynamic processes dynamic vegetation
 def dynamic(self, pcr, pcrm, np, Precip, ETref):
-    #-Read the ndvi time-series
-    if self.NDVINetcdfFLAG == 1:
-        try:
-            #-get time index from netcdf
-            self.netcdf2PCraster.netcdf2pcrTimeIdx(self, pcr, 'NDVI')
-            #-read forcing by netcdf input
-            ndvi = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'NDVI')
-        except:
-            ndvi = self.ndviOld
-    else:
-        #-try to read the ndvi map series. If not available, then use ndvi old
-        try:
-            ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.counter))
-        except:
-            ndvi = self.ndviOld
+    #-try to read the ndvi map series. If not available, then use ndvi old
+    try:
+        ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.counter))
+    except:
+        ndvi = self.ndviOld
     self.ndviOld = ndvi
     #-fill missing ndvi values with average
     ndviAvg = np.nanmean(pcr.pcr2numpy(ndvi, np.nan))
