@@ -60,6 +60,7 @@ class sphy(pcrm.DynamicModel):
 		import datetime, calendar, ET, rootzone, subzone
 		import utilities.reporting as reporting
 		import utilities.timecalc as timecalc
+		import utilities.input as input
 		import utilities.netcdf2PCraster as netcdf2PCraster
 		from math import pi
 		#-standard python modules
@@ -70,10 +71,11 @@ class sphy(pcrm.DynamicModel):
 		self.reporting = reporting
 		self.timecalc = timecalc
 		self.netcdf2PCraster = netcdf2PCraster
+		self.input = input
 		self.ET = ET
 		self.rootzone = rootzone
 		self.subzone = subzone
-		del datetime, calendar, pi, reporting, timecalc, ET, rootzone, subzone
+		del datetime, calendar, pi, reporting, input, timecalc, ET, rootzone, subzone
 		#-import additional modules if required
 		if self.GlacFLAG == 1:
 			self.SnowFLAG = 1
@@ -120,7 +122,11 @@ class sphy(pcrm.DynamicModel):
 		self.clonefile = self.inpath + config.get('GENERAL','mask')
 		pcr.setclone(self.clonefile)
 		self.clone = pcr.ifthen(pcr.readmap(self.clonefile), pcr.boolean(1))
-		
+
+		#-create dummy map with only 1s
+		self.ones = pcr.scalar(self.clone) * 0 + 1
+
+		#-create variable with cell area
 		self.cellArea = pcr.cellvalue(pcr.cellarea(),1)[0]
 
 		#-read general maps
@@ -255,6 +261,19 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes glacier module
 			self.snow.init(self, pcr, config)
 
+		#-read irrigation flag
+		self.IrrigationFLAG = config.getint('IRRIGATION','IrrigationFLAG')
+
+		#-read and set irrigation maps and parameters if irrigation module is used
+		if self.IrrigationFLAG == 1:
+			#-import irrigation module
+			import modules.irrigation
+			self.irrigation = modules.irrigation
+			del modules.irrigation 
+
+			#-read init process irrigation
+			self.irrigation.init(self,pcr,config)
+
 		#-read and set climate forcing and the calculation of etref
 
 		#-read precipitation data
@@ -324,13 +343,62 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes routing
 			self.routing.init(self, pcr, config)
 
+		#-read kinematic wave flag
+		self.KinematicFLAG = config.getint('ROUTING', 'KinematicFLAG')
+
+		#-In case kinematic wave routing is switched on
+		if self.KinematicFLAG == 1:
+			import modules.kinematic 
+			self.kinematic = modules.kinematic
+			del modules.kinematic
+			# import modules.kinematic_pcrglobwb
+			# self.kinematic = modules.kinematic_pcrglobwb
+			# del modules.kinematic_pcrglobwb
+			
+			#-read init processes kinematic wave routing
+			self.kinematic.init(self, pcr, pcrm, config, np)
+
+		#-read dynamic wave flag
+		self.DynamicFLAG = config.getint('ROUTING', 'DynamicFLAG')
+
+		#-In case dynamic wave routing is switched on
+		if self.DynamicFLAG == 1:
+			import modules.dynamic_wave 
+			self.dynamic_wave = modules.dynamic_wave
+			del modules.dynamic_wave
+			
+			#-read init processes dynamic wave routing
+			self.dynamic_wave.init(self, pcr, config, np)
+
+		#-read dynamic wave flag
+		self.travelTimeFLAG = config.getint('ROUTING', 'travelTimeFLAG')
+
+		#-In case dynamic wave routing is switched on
+		if self.travelTimeFLAG == 1:
+			import modules.travel_time_routing 
+			self.travel_time_routing = modules.travel_time_routing
+			del modules.travel_time_routing
+			
+			#-read init processes dynamic wave routing
+			self.travel_time_routing.init(self, pcr, pcrm, config, np)
+
+		#-In case re-infiltration is switched on
+		self.ReInfiltrationFLAG = config.getint('ROUTING', 'ReInfiltrationFLAG')
+		if self.ReInfiltrationFLAG == 1:
+			import modules.reinfiltration 
+			self.reinfiltration = modules.reinfiltration
+			del modules.reinfiltration
+			
+			# #-read init processes dynamic wave routing
+			# self.reinfiltration.init(self, pcr, pcrm, config, np)
+
 		#-read and set routing maps and parameters
 		if self.ResFLAG == 1 or self.LakeFLAG == 1:
 			#-import advanced routing module
 			import modules.advanced_routing
 			self.advanced_routing = modules.advanced_routing
 			del modules.advanced_routing
-			
+				
 			#-read init processes advanced routing
 			self.advanced_routing.init(self, pcr, config)
 
@@ -522,10 +590,13 @@ class sphy(pcrm.DynamicModel):
 		if self.DynVegFLAG == 1:
 			#-read initial conditions dynamic vegetation
 			self.dynamic_veg.initial(self, pcr)
-
 		elif self.KcStatFLAG == 0:
 			#-set initial kc value to one, if kc map is not available for first timestep
 			self.KcOld = pcr.scalar(1)
+
+		if self.IrrigationFLAG == 1:
+			#-read initial conditions irrigation
+			self.irrigation.initial(self,pcr)
 
 		#-initial groundwater properties
 		if self.GroundFLAG == 1:
@@ -560,6 +631,21 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes routing
 			self.routing.initial(self, pcr, config)
 
+			#-In case kinematic wave routing is switched on
+			if self.KinematicFLAG == 1:
+				#-read init processes kinematic wave routing
+				self.kinematic.initial(self, pcr, config)
+
+			#-In case dynamic wave routing is switched on
+			if self.DynamicFLAG == 1:
+				#-read init processes dynamic wave routing
+				self.dynamic_wave.initial(self, pcr, config)
+
+			#-In case dynamic wave routing is switched on
+			if self.travelTimeFLAG == 1:
+				#-read init processes dynamic wave routing
+				self.travel_time_routing.initial(self, pcr, config)
+
 		#-initial storage in lakes and reservoirs
 		if self.LakeFLAG == 1 or self.ResFLAG == 1:
 			#-Read initial storages from table/reservoir file
@@ -570,8 +656,9 @@ class sphy(pcrm.DynamicModel):
 				#-read initial conditions reservoirs
 				self.reservoirs.initial(self, pcr, config)
 
-			#-read init processes advanced routing
-			self.advanced_routing.initial(self, pcr, config)
+			if self.travelTimeFLAG == 0:
+				#-read init processes advanced routing
+				self.advanced_routing.initial(self, pcr, config)
 
 		#-Initial routed volume of sediment
 		if self.SedFLAG == 1 and self.SedTransFLAG == 1:
@@ -626,6 +713,12 @@ class sphy(pcrm.DynamicModel):
 		#-Report Precip
 		self.reporting.reporting(self, pcr, 'TotPrec', Precip)
 		self.reporting.reporting(self, pcr, 'TotPrecF', Precip * (1-self.GlacFrac))
+
+		#-Add irrigation water to precipitation
+		if self.IrrigationFLAG ==1:
+			# IrrigationWater = 0 
+			#self.IrrigationWater = 0
+			Precip = Precip + self.IrrigationWater
 
 		#-Temperature and determine reference evapotranspiration
 		if self.tempNetcdfFLAG == 1:
@@ -723,7 +816,8 @@ class sphy(pcrm.DynamicModel):
 
 		#-Actual evapotranspiration
 		if self.PlantWaterStressFLAG == 1:
-			etreddry = self.ET.ks(self, pcr, ETpot)
+			# etreddry = self.ET.ks(self, pcr, ETpot)
+			etreddry, RAW = self.ET.ks(self, pcr, ETpot)
 		else:
 			etreddry = pcr.max(pcr.min((self.RootWater - self.RootDry) / (self.RootWilt - self.RootDry), 1), 0)
 		self.reporting.reporting(self, pcr, 'PlantStress', 1 - etreddry)
@@ -814,6 +908,15 @@ class sphy(pcrm.DynamicModel):
 		#-Report rain runoff
 		self.reporting.reporting(self, pcr, 'TotRainRF', self.RainR)
 
+		#-Determine irrigation water for next time step
+		if self.IrrigationFLAG == 1 and self.PlantWaterStressFLAG == 1:
+			# self.IrrigationWater,IrrigationTOT,HorticultureETa,HorticultureETp= self.irrigation.dynamic(self,pcr,pcrm,ETpot,ETact,self.RootWater)
+			self.IrrigationWater = self.irrigation.dynamic(self, pcr, RAW)
+			# self.reporting.reporting(self,pcr,'TotIrr', self.IrrigationWater)
+			# self.reporting.reporting(self,pcr,'AreaIrr',IrrigationTOT) 
+			# self.reporting.reporting(self,pcr, 'ETaCrop' , HorticultureETa)
+			# self.reporting.reporting(self,pcr,'ETpCrop', HorticultureETp )
+
 		#-Groundwater calculations
 		if self.GroundFLAG == 1:
 			#-read dynamic processes groundwater
@@ -834,16 +937,33 @@ class sphy(pcrm.DynamicModel):
 
 		#-Routing for lake and/or reservoir modules
 		if self.LakeFLAG == 1 or self.ResFLAG == 1:
+			# if self.travelTimeFLAG == 1:
+			# else:
 			#-read dynamic processes advanced routing
 			Q = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
 
 		#-Normal routing module
 		elif self.RoutFLAG == 1:
-			Q = self.routing.dynamic(self, pcr, TotR)
+			if self.KinematicFLAG == 1:
+				Q = self.kinematic.dynamic(self, pcr, TotR)
+			elif self.DynamicFLAG == 1:
+				Q = self.dynamic_wave.dynamic(self, pcr, TotR)
+			elif self.travelTimeFLAG == 1:
+				Q, u = self.travel_time_routing.dynamic(self, pcr, TotR)
+			else:
+				Q = self.routing.dynamic(self, pcr, TotR)
 			
 			if self.GlacFLAG:
 				#-read dynamic reporting processes glacier
 				self.glacier.dynamic_reporting(self, pcr, pd, np)
+
+		#-Re-infiltration
+		if self.ReInfiltrationFLAG == 1 and self.travelTimeFLAG == 1:
+			#-Determine re-infiltration
+			Infil = self.reinfiltration.dynamic(self, pcr)
+
+			#-Add to rootwater
+			self.RootWater = self.RootWater + Infil
 
 		#-Water balance
 		if self.GlacFLAG and self.GlacRetreat == 1:

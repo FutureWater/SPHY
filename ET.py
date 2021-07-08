@@ -37,4 +37,4 @@ def ks(self, pcr, etpot):
     RAW = TAW * p
     RootPWS = self.RootField - RAW
     Ks = pcr.max(pcr.min((self.RootWater - self.RootDry) / (RootPWS - self.RootDry), 1), 0)
-    return Ks
+    return Ks, RAW
