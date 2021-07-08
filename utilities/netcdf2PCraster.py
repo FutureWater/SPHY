@@ -192,6 +192,9 @@ def netcdf2pcrDynamic(self, pcr, forcing): #ncFile, varName, dateInput, method, 
     #-convert to PCRaster Python map
     output = pcr.numpy2pcr(pcr.Scalar, zi, -9999)
 
+    #-cover no data cells with area average
+    output = pcr.cover(output, pcr.areaaverage(output, self.clone))
+
     return output
 
 #-function to interpolate netcdf gridded data to model grid
