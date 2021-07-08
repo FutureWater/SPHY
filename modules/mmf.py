@@ -191,18 +191,7 @@ def init(self, pcr, config):
         self.n_veg_field_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_field_harvest)
         self.n_field_harvest = (self.n_soil**2 + self.n_veg_field_harvest**2)**0.5
         self.v_field_harvest = self.mmf.FlowVelocity(self, pcr, self.n_field_harvest, self.d_field)
-    
-    #-Read flag if channels should be excluded from the detachment by runoff calculation
-    self.exclChannelsFLAG = config.getint('MMF', 'exclChannelsFLAG')
-    
-    #-determine hillslope map if channels should be excluded
-    if self.exclChannelsFLAG == 1:
-        #-determine upstream area map
-        self.UpstreamArea = pcr.accuflux(self.FlowDir, 1) * pcr.cellarea() / 10**6
 
-        #-determine upstream area larger than upstream_km2 and define hillslope cells based on upstream area
-        self.Upstream_km2 = config.getfloat('MMF', 'upstream_km2')
-        self.Hillslope = pcr.scalar(self.UpstreamArea <= self.Upstream_km2)
 
 #-dynamic processes
 def dynamic(self, pcr, Precip, Runoff):

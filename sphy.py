@@ -397,6 +397,18 @@ class sphy(pcrm.DynamicModel):
 			#-read rock fraction map
 			self.RockFrac = pcr.readmap(self.inpath + config.get('SEDIMENT', 'RockFrac'))
 
+			#-Read flag if channels should be excluded from the detachment by runoff calculation
+			self.exclChannelsFLAG = config.getint('SEDIMENT', 'exclChannelsFLAG')
+			
+			#-determine hillslope map if channels should be excluded
+			if self.exclChannelsFLAG == 1:
+				#-determine upstream area map
+				self.UpstreamArea = pcr.accuflux(self.FlowDir, 1) * pcr.cellarea() / 10**6
+
+				#-determine upstream area larger than upstream_km2 and define hillslope cells based on upstream area
+				self.Upstream_km2 = config.getfloat('SEDIMENT', 'upstream_km2')
+				self.Hillslope = pcr.scalar(self.UpstreamArea <= self.Upstream_km2)
+
 			#-read MUSLE input parameters
 			if self.SedModel == 1:
 				#-import musle module
@@ -416,6 +428,46 @@ class sphy(pcrm.DynamicModel):
 
 				#-read init processes mmf
 				self.mmf.init(self, pcr, config)
+
+			#-read INCA input parameters
+			if self.SedModel == 3:
+				#-import INCA module
+				import modules.inca
+				self.inca = modules.inca
+				del modules.inca
+
+				#-read init processes INCA
+				self.inca.init(self, pcr, config)
+
+			#-read SHETRAN input parameters
+			if self.SedModel == 4:
+				#-import SHETRAN module
+				import modules.shetran
+				self.shetran = modules.shetran
+				del modules.shetran
+
+				#-read init processes SHETRAN
+				self.shetran.init(self, pcr, config)
+
+			#-read DHSVM input parameters
+			if self.SedModel == 5:
+				#-import DHSVM module
+				import modules.dhsvm
+				self.dhsvm = modules.dhsvm
+				del modules.dhsvm
+
+				#-read init processes DHSVM
+				self.dhsvm.init(self, pcr, config)
+
+			#-read HSPF input parameters
+			if self.SedModel == 6:
+				#-import HSPF module
+				import modules.hspf
+				self.hspf = modules.hspf
+				del modules.hspf
+
+				#-read init processes HSPF
+				self.hspf.init(self, pcr, config)
 
 			#-read input parameters for sediment transport
 			if self.SedTransFLAG == 1:
@@ -590,12 +642,14 @@ class sphy(pcrm.DynamicModel):
 			else:
 				#-read forcing by map input
 				TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.counter))
+				# TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.curdate.timetuple().tm_yday))
 			if self.TmaxNetcdfFLAG == 1:
 				#-read forcing by netcdf input
 				TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmax')
 			else:
 				#-read forcing by map input
 				TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.counter))
+				# TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.curdate.timetuple().tm_yday))
 			ETref = self.Hargreaves.Hargreaves(pcr, self.Hargreaves.extrarad(self, pcr), Temp, TempMax, TempMin)
 		else:
 			ETref = pcr.readmap(pcrm.generateNameT(self.ETref, self.counter))
@@ -866,7 +920,27 @@ class sphy(pcrm.DynamicModel):
 				if self.SedTransFLAG == 1:
 					#-read dynamic sediment transport processes mmf
 					self.sediment_transport.dynamic_mmf(self, pcr, Runoff, np, G)
-					
+
+			#-INCA
+			if self.SedModel == 3:
+				#-determine soil erosion
+				Sed = self.inca.dynamic(self, pcr, Precip, Q)
+
+			#-SHETRAN
+			if self.SedModel == 4:
+				#-determine soil erosion
+				Sed = self.shetran.dynamic(self, pcr, np, Precip, Q)
+
+			#-DHSVM
+			if self.SedModel == 5:
+				#-determine soil erosion
+				Sed = self.dhsvm.dynamic(self, pcr, np, Precip, Q)
+
+			#-HSPF
+			if self.SedModel == 6:
+				#-determine soil erosion
+				Sed = self.hspf.dynamic(self, pcr, np, Precip, Runoff)
+
 
 		#-update current date
 		self.curdate = self.curdate + self.datetime.timedelta(days=1)
