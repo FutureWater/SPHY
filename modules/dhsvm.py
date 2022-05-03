@@ -181,11 +181,11 @@ def init(self, pcr, config):
 
 #-dynamic processes dhsvm
 def dynamic(self, pcr, np, Precip, Q):
-    #-determine canopy cover from LAI
-    if self.DynVegFLAG == 1:
-        C_C_DHSVM = pcr.min(1, self.LAI)
-    else:
-        C_C_DHSVM = self.C_C_table_DHSVM
+    # #-determine canopy cover from LAI
+    # if self.DynVegFLAG == 1:
+    #     self.CC = pcr.min(1, self.LAI)
+    # else:
+    #     self.CC = self.C_C_table_DHSVM
 
     #-determine rainfall drop momentum (kg2/s3)
     M_R = self.dhsvm.MomentumRainDrop(self, pcr, np, Precip)
@@ -194,10 +194,10 @@ def dynamic(self, pcr, np, Precip, Q):
     DRAIN = Precip * 1e-3 / (24 * 60 * 60)
 
     #-determine leaf drop momentum (kg2/s3)
-    M_D = self.dhsvm.MomentumLeafDrip(self, pcr, self.D_DHSVM, self.X_DHSVM, self.rho_DHSVM, DRAIN, self.g_DHSVM, C_C_DHSVM)
+    M_D = self.dhsvm.MomentumLeafDrip(self, pcr, self.D_DHSVM, self.X_DHSVM, self.rho_DHSVM, DRAIN, self.g_DHSVM, self.CC)
 
     #-determine detachment of soil particles by raindrop impact (kg/m2/s)
-    D_R = self.dhsvm.DetachmentRaindrop(self, pcr, self.k_r_DHSVM, self.F_w_DHSVM, self.C_G_DHSVM, C_C_DHSVM, M_R, M_D)
+    D_R = self.dhsvm.DetachmentRaindrop(self, pcr, self.k_r_DHSVM, self.F_w_DHSVM, self.C_G_DHSVM, self.CC, M_R, M_D)
 
     #-report detachment of soil particles by raindrop impact (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRn', D_R * pcr.cellarea() * 1e-3 * (24 * 60 * 60))

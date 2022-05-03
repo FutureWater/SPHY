@@ -86,7 +86,9 @@ def DetachmentRunoff(self, pcr, k_f, C_r, tau, tau_cr, C_g):
     D_q = pcr.ifthenelse(tau > tau_cr, k_f * pcr.max(0, 1 - C_g - C_r - self.NoErosion_SHETRAN) * (tau/tau_cr - 1), 0)
     
     #-set values in channels to 0 in case channels should be excluded
-    if self.exclChannelsFLAG == 1:
+    if self.travelTimeFLAG == 1:
+        D_q = pcr.ifthenelse(self.channelHillslope == 2, D_q, 0)
+    elif self.exclChannelsFLAG == 1:
         D_q = D_q * self.Hillslope
     return D_q
 
@@ -155,29 +157,37 @@ def init(self, pcr, config):
     self.NoErosion_SHETRAN = pcr.lookupscalar(shetran_table, 6, self.LandUse)
     pcr.setglobaloption('columntable')
 
+    self.CC_table = self.C_c_table_SHETRAN
+    self.GC = self.C_g_SHETRAN
+    self.GC_table = self.GC
+    self.CC_harvest = 0
+    self.GC_harvest = 0
+    self.PlantHeight_harvest = 0
+    self.PlantHeight = self.X_SHETRAN
+
     #-read other model parameters
     self.WD_ratio_SHETRAN = config.getfloat('SHETRAN', 'WD_ratio')
-    self.rho_SHETRAN = config.getfloat('SHETRAN', 'rho')
-    self.rho_s_SHETRAN = config.getfloat('SHETRAN', 'rho_s')
-    self.deltaClay_SHETRAN = config.getfloat('SHETRAN', 'deltaClay') * 1e-6
-    self.deltaSilt_SHETRAN = config.getfloat('SHETRAN', 'deltaSilt') * 1e-6
-    self.deltaSand_SHETRAN = config.getfloat('SHETRAN', 'deltaSand') * 1e-6
+    # self.rho_SHETRAN = config.getfloat('SHETRAN', 'rho')
+    # self.rho_s_SHETRAN = config.getfloat('SHETRAN', 'rho_s')
+    # self.deltaClay_SHETRAN = config.getfloat('SHETRAN', 'deltaClay') * 1e-6
+    # self.deltaSilt_SHETRAN = config.getfloat('SHETRAN', 'deltaSilt') * 1e-6
+    # self.deltaSand_SHETRAN = config.getfloat('SHETRAN', 'deltaSand') * 1e-6
     self.CapacityEquation = config.getint('SHETRAN', 'capacityEquation')
     self.k_r_SHETRAN = config.getfloat('SHETRAN', 'k_r')
     self.k_f_SHETRAN = config.getfloat('SHETRAN', 'k_f')
 
     #-define some constants
     self.F_w_SHETRAN = 1
-    self.g_SHETRAN = 9.81
-    self.nu_SHETRAN = 1e-06
+    self.g = 9.81
+    self.nu = 1e-06
 
     #-determine median grain size
     if self.PedotransferFLAG == 1:
-        self.D50_SHETRAN = pcr.ifthenelse(self.RootClayMap > 0.5, pcr.scalar(self.deltaClay_SHETRAN), 0)
-        self.D50_SHETRAN = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap > 0.5, self.deltaClay_SHETRAN + (self.deltaSilt_SHETRAN - self.deltaClay_SHETRAN) * (0.5 - self.RootClayMap) / self.RootSiltMap, 0) + self.D50_SHETRAN
-        self.D50_SHETRAN = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap < 0.5, self.deltaSilt_SHETRAN + (self.deltaSand_SHETRAN - self.deltaSilt_SHETRAN) * (self.RootSandMap - 0.5) / self.RootSandMap, 0) + self.D50_SHETRAN
+        self.D50 = pcr.ifthenelse(self.RootClayMap > 0.5, pcr.scalar(self.deltaClay), 0)
+        self.D50 = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap > 0.5, self.deltaClay + (self.deltaSilt - self.deltaClay) * (0.5 - self.RootClayMap) / self.RootSiltMap, 0) + self.D50
+        self.D50 = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap < 0.5, self.deltaSilt + (self.deltaSand - self.deltaSilt) * (self.RootSandMap - 0.5) / self.RootSandMap, 0) + self.D50
     else:
-        self.D50_SHETRAN = config.getfloat('SHETRAN', 'D50') * 1e-6
+        self.D50 = config.getfloat('SHETRAN', 'D50') * 1e-6
 
 
 #-dynamic processes shetran
@@ -195,36 +205,53 @@ def dynamic(self, pcr, np, Precip, Q):
     DRAINA = Precip * 1e-3 / (24 * 60 * 60)
 
     #-determine leaf drop momentum (kg2/s3)
-    M_d = self.shetran.MomentumLeafDrip(self, pcr, self.d_l_SHETRAN, self.X_SHETRAN, self.rho_SHETRAN, DRAINA, self.g_SHETRAN, C_c_SHETRAN)
+    M_d = self.shetran.MomentumLeafDrip(self, pcr, self.d_l_SHETRAN, self.X_SHETRAN, self.rho, DRAINA, self.g, C_c_SHETRAN)
 
     #-determine detachment of soil particles by raindrop impact (kg/m2/s)
     D_r = self.shetran.DetachmentRaindrop(self, pcr, self.k_r_SHETRAN, self.F_w_SHETRAN, self.C_g_SHETRAN, self.RockFrac, M_r, M_d)
 
     #-report detachment of soil particles by raindrop impact (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRn', D_r * pcr.cellarea() * 1e-3 * (24 * 60 * 60))
+    pcr.report(D_r * pcr.cellarea() * 1e-3 * (24 * 60 * 60), self.outpath + "DetRn_" + str(self.counter).zfill(3) + ".map")
  
-    #-determine water depth (m) and width of the flow (m)
-    h, l = self.shetran.Manning(self, pcr, Q, self.n_table_SHETRAN, self.WD_ratio_SHETRAN, self.Slope)
+    #-determine shear stress (N/m2)
+    if self.travelTimeFLAG == 1:
+        tau = self.shetran.ShearStress(self, pcr, self.rho, self.g, self.waterDepth, self.Slope)
+    else:
+        #-determine water depth (m) and width of the flow (m)
+        h, l = self.shetran.Manning(self, pcr, Q, self.n_table_SHETRAN, self.WD_ratio_SHETRAN, self.Slope)
+
+        #-determine shear stress (N/m2)
+        tau = self.shetran.ShearStress(self, pcr, self.rho, self.g, h, self.Slope)
 
     #-determine shear stress (N/m2)
-    tau = self.shetran.ShearStress(self, pcr, self.rho_SHETRAN, self.g_SHETRAN, h, self.Slope)
-
-    #-determine shear stress (N/m2)
-    tau_cr = self.shetran.ShearStressCritical(self, pcr, tau, self.rho_s_SHETRAN, self.rho_SHETRAN, self.g_SHETRAN, self.D50_SHETRAN, self.nu_SHETRAN)
+    tau_cr = self.shetran.ShearStressCritical(self, pcr, tau, self.rho_s, self.rho, self.g, self.D50, self.nu)
 
     #-determine detachment of soil particles by runoff (kg/m2/s)
     D_q = self.shetran.DetachmentRunoff(self, pcr, self.k_f_SHETRAN, self.RockFrac, tau, tau_cr, self.C_g_SHETRAN)
 
     #-report detachment of soil particles by runoff (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRun', D_q * pcr.cellarea() * 1e-3 * (24 * 60 * 60))
+    pcr.report(D_q * pcr.cellarea() * 1e-3 * (24 * 60 * 60), self.outpath + "DetRun_" + str(self.counter).zfill(3) + ".map")
 
-    #-Determine transport capacity of the flow (m3/s)
-    G_tot = self.shetran.Capacity(self, pcr, np, tau, tau_cr, self.rho_SHETRAN, self.rho_s_SHETRAN, self.g_SHETRAN, h, l, Q, self.D50_SHETRAN, self.Slope)
+    #-Apply immediate deposition when sediment transport is not used
+    if self.SedTransFLAG == 0:
+        #-Determine transport capacity of the flow (m3/s)
+        if self.travelTimeFLAG == 1:
+            G_tot = self.shetran.Capacity(self, pcr, np, tau, tau_cr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, self.D50, self.slopeToDownstreamNeighbour)
+        else:
+            G_tot = self.shetran.Capacity(self, pcr, np, tau, tau_cr, self.rho, self.rho_s, self.g, h, l, Q, self.D50, self.Slope)
 
-    #-determine mass of sediment in transport (kg/m2/s)
-    sed = self.shetran.sedimentTransported(self, pcr, D_r, D_q, G_tot, self.rho_s_SHETRAN)
+        #-determine mass of sediment in transport (kg/m2/s)
+        sed = self.shetran.sedimentTransported(self, pcr, D_r, D_q, G_tot, self.rho_s)
+    else:
+        #-Hillslope erosion equals detachment by raindrop impact and runoff
+        sed = D_r + D_q
 
     #-report sediment in transport (ton / cell)
     self.reporting.reporting(self, pcr, 'SedTrans', sed * pcr.cellarea() * 1e-3 * (24 * 60 * 60))
+
+    #-Transform to ton / cell
+    sed = sed * pcr.cellarea() * 1e-3 * (24 * 60 * 60)
 
     return sed
