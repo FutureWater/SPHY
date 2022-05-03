@@ -28,7 +28,7 @@ import pcraster as pcr
 import pcraster.framework as pcrm
 import numpy as np
 
-tic = time.clock()
+tic = time.process_time()
 
 # Read the model configuration file
 config = configparser.RawConfigParser()
@@ -53,8 +53,9 @@ class sphy(pcrm.DynamicModel):
 		self.LakeFLAG = config.getint('MODULES','LakeFLAG')
 		self.DynVegFLAG = config.getint('MODULES','DynVegFLAG')
 		self.GroundFLAG = config.getint('MODULES','GroundFLAG')
-		self.SedFLAG = config.getint('MODULES','SedFLAG')
+		self.ErosionFLAG = config.getint('MODULES','ErosionFLAG')
 		self.SedTransFLAG = config.getint('MODULES','SedTransFLAG')
+		self.MorphodynamicsFLAG = config.getint('MODULES','MorphodynamicsFLAG')
 
 		# import the required modules
 		import datetime, calendar, ET, rootzone, subzone
@@ -284,7 +285,7 @@ class sphy(pcrm.DynamicModel):
 			self.netcdf2PCraster.getConfigNetcdf(self, config, 'Prec', 'CLIMATE')
 
 			#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-			self.netcdf2PCraster.netcdf2pcrInit(self, pcr, 'Prec')
+			self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Prec')
 		else:
 			#-read precipitation forcing folder
 			self.Prec = self.inpath + config.get('CLIMATE','Prec')
@@ -298,7 +299,7 @@ class sphy(pcrm.DynamicModel):
 			self.netcdf2PCraster.getConfigNetcdf(self, config, 'Temp', 'CLIMATE')
 
 			#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-			self.netcdf2PCraster.netcdf2pcrInit(self, pcr, 'Temp')
+			self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Temp')
 		else:
 			#-read temperature forcing folder
 			self.Tair = self.inpath + config.get('CLIMATE','Tair')
@@ -316,7 +317,7 @@ class sphy(pcrm.DynamicModel):
 				self.netcdf2PCraster.getConfigNetcdf(self, config, 'Tmin', 'ETREF')
 
 				#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, 'Tmin')
+				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Tmin')
 			else:
 				self.Tmin = self.inpath + config.get('ETREF','Tmin')
 			#-read flag for maximum temperature forcing by netcdf
@@ -326,7 +327,7 @@ class sphy(pcrm.DynamicModel):
 				self.netcdf2PCraster.getConfigNetcdf(self, config, 'Tmax', 'ETREF')
 
 				#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, 'Tmax')
+				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Tmax')
 			else:
 				self.Tmax = self.inpath + config.get('ETREF','Tmax')
 			self.Gsc = config.getfloat('ETREF', 'Gsc')
@@ -458,86 +459,16 @@ class sphy(pcrm.DynamicModel):
 				self.pavedFrac = 0
 
 		#-read maps and parameters for soil erosion
-		if self.SedFLAG == 1:
-			#-read soil erosion model selector (1 for MUSLE, 2 for MMF)
-			self.SedModel = config.getfloat('SEDIMENT', 'SedModel')
+		if self.ErosionFLAG == 1:
+			#-import erosion module
+			import modules.erosion
+			self.erosion = modules.erosion
+			del modules.erosion
 
-			#-read rock fraction map
-			self.RockFrac = pcr.readmap(self.inpath + config.get('SEDIMENT', 'RockFrac'))
+			#-read init processes sediment transport
+			self.erosion.init(self, pcr, config, csv, np)
 
-			#-Read flag if channels should be excluded from the detachment by runoff calculation
-			self.exclChannelsFLAG = config.getint('SEDIMENT', 'exclChannelsFLAG')
-			
-			#-determine hillslope map if channels should be excluded
-			if self.exclChannelsFLAG == 1:
-				#-determine upstream area map
-				self.UpstreamArea = pcr.accuflux(self.FlowDir, 1) * pcr.cellarea() / 10**6
-
-				#-determine upstream area larger than upstream_km2 and define hillslope cells based on upstream area
-				self.Upstream_km2 = config.getfloat('SEDIMENT', 'upstream_km2')
-				self.Hillslope = pcr.scalar(self.UpstreamArea <= self.Upstream_km2)
-
-			#-read MUSLE input parameters
-			if self.SedModel == 1:
-				#-import musle module
-				import modules.musle
-				self.musle = modules.musle
-				del modules.musle
-
-				#-read init processes musle
-				self.musle.init(self, pcr, config)
-
-			#-read MMF input parameters
-			if self.SedModel == 2:
-				#-import mmf module
-				import modules.mmf
-				self.mmf = modules.mmf
-				del modules.mmf
-
-				#-read init processes mmf
-				self.mmf.init(self, pcr, config)
-
-			#-read INCA input parameters
-			if self.SedModel == 3:
-				#-import INCA module
-				import modules.inca
-				self.inca = modules.inca
-				del modules.inca
-
-				#-read init processes INCA
-				self.inca.init(self, pcr, config)
-
-			#-read SHETRAN input parameters
-			if self.SedModel == 4:
-				#-import SHETRAN module
-				import modules.shetran
-				self.shetran = modules.shetran
-				del modules.shetran
-
-				#-read init processes SHETRAN
-				self.shetran.init(self, pcr, config)
-
-			#-read DHSVM input parameters
-			if self.SedModel == 5:
-				#-import DHSVM module
-				import modules.dhsvm
-				self.dhsvm = modules.dhsvm
-				del modules.dhsvm
-
-				#-read init processes DHSVM
-				self.dhsvm.init(self, pcr, config)
-
-			#-read HSPF input parameters
-			if self.SedModel == 6:
-				#-import HSPF module
-				import modules.hspf
-				self.hspf = modules.hspf
-				del modules.hspf
-
-				#-read init processes HSPF
-				self.hspf.init(self, pcr, config)
-
-			#-read input parameters for sediment transport
+			#-read input parameters for sediment transport module
 			if self.SedTransFLAG == 1:
 				#-import sediment transport module
 				import modules.sediment_transport
@@ -546,6 +477,17 @@ class sphy(pcrm.DynamicModel):
 
 				#-read init processes sediment transport
 				self.sediment_transport.init(self, pcr, config, csv, np)
+
+				#-read input parameters for morphodynamics module
+				if self.MorphodynamicsFLAG == 1:
+					#-import morphodynamics module
+					import modules.morphodynamics
+					self.morphodynamics = modules.morphodynamics
+					del modules.morphodynamics
+
+					#-read init processes sediment transport
+					self.morphodynamics.init(self, pcr, pcrm, config)
+
 
 		#-set the global option for radians
 		pcr.setglobaloption('radians')
@@ -660,10 +602,10 @@ class sphy(pcrm.DynamicModel):
 				#-read init processes advanced routing
 				self.advanced_routing.initial(self, pcr, config)
 
-		#-Initial routed volume of sediment
-		if self.SedFLAG == 1 and self.SedTransFLAG == 1:
-			#-read init processes sediment transport
-			self.sediment_transport.initial(self, pcr, config)
+		# #-Initial routed volume of sediment
+		# if self.ErosionFLAG == 1 and self.SedTransFLAG == 1:
+		# 	#-read init processes sediment transport
+		# 	self.sediment_transport.initial(self, pcr, config)
 
 		#-Initial values for reporting and setting of time-series
 		#-set time-series reporting for mm flux from upstream area for prec and eta
@@ -693,6 +635,9 @@ class sphy(pcrm.DynamicModel):
 		if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') == 1:
 			#-read initial conditions reporting reservoirs
 			self.reservoirs.initial_reporting(self, pcr, pcrm)
+		if self.MorphodynamicsFLAG == 1:
+			#-read initial conditions morphodynamics
+			self.morphodynamics.initial(self, pcr)
 
 	def dynamic(self):
 		self.counter+=1
@@ -724,6 +669,8 @@ class sphy(pcrm.DynamicModel):
 		if self.tempNetcdfFLAG == 1:
 			#-read forcing by netcdf input
 			Temp = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Temp')
+			# pcr.report(Temp, self.outpath + "Temp_aemet.map")
+			# exit()
 		else:
 			#-read forcing by map input
 			Temp = pcr.readmap(pcrm.generateNameT(self.Tair, self.counter))
@@ -949,7 +896,7 @@ class sphy(pcrm.DynamicModel):
 			elif self.DynamicFLAG == 1:
 				Q = self.dynamic_wave.dynamic(self, pcr, TotR)
 			elif self.travelTimeFLAG == 1:
-				Q, u = self.travel_time_routing.dynamic(self, pcr, TotR)
+				Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)
 			else:
 				Q = self.routing.dynamic(self, pcr, TotR)
 			
@@ -1013,54 +960,81 @@ class sphy(pcrm.DynamicModel):
 		waterbalance = None; del waterbalance; dS = None; del dS;
 		#-End of water balance calculations
 
-		#-Sediment yield
-		if self.SedFLAG == 1:
-			#-determine runoff in mm per day
+		#-Soil erosion
+		if self.ErosionFLAG == 1:
+			#-determine runoff in mm per day as input for the soil erosion module
 			if self.RoutFLAG == 1 or self.ResFLAG == 1 or self.LakeFLAG == 1:
-				Runoff = (Q * 3600 * 24) / pcr.cellarea() * 1000
+				#-detachment by runoff is modelled as sheet erosion (with local runoff as input) when travel time routing is used
+				# if self.travelTimeFLAG:
+				# 	Q_mm = TotR
+				# 	Q_m3 = TotR * 1e-3 * pcr.cellarea() / (3600 * 24)
+				# else:
+				# 	Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
+				# 	Q_m3 = Q
+				Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
+				Q_m3 = Q
 			else: 
-				Runoff = TotR
+				Q_mm = TotR
+				Q_m3 = Q
 
-			#-MUSLE
-			if self.SedModel == 1:
-				#-read dynamic processes musle
-				self.musle.dynamic(self, pcr, Runoff)
+			#-read dynamic processes advanced routing
+			Sed = self.erosion.dynamic(self, pcr, np, Precip, Q_m3, Q_mm)
 
-				#-sediment transport
-				if self.SedTransFLAG == 1:
-					#-read dynamic sediment transport processes musle
-					self.sediment_transport.dynamic_musle(self, pcr)
+			#-sediment transport
+			if self.SedTransFLAG == 1:
+				#-read dynamic sediment transport processes
+				# self.sediment_transport.dynamic_mmf(self, pcr, Runoff, np, Sed)
+				self.sediment_transport.dynamic(self, pcr, np, Q, Sed)
 
-			#-Modified Morgan-Morgan-Finney model
-			if self.SedModel == 2:
-				#-determine soil erosion in transport (G)
-				G = self.mmf.dynamic(self, pcr, Precip, Runoff)
+				#-morphodynamics
+				if self.MorphodynamicsFLAG == 1:
+					#-read dynamic morphodynamics processes
+					self.morphodynamics.dynamic(self, pcr, pcrm, np, Q, Sed)
+
+			# #-MUSLE
+			# if self.SedModel == 1:
+			# 	#-read dynamic processes musle
+			# 	self.musle.dynamic(self, pcr, Runoff)
+
+			# 	#-sediment transport
+			# 	if self.SedTransFLAG == 1:
+			# 		#-read dynamic sediment transport processes musle
+			# 		self.sediment_transport.dynamic_musle(self, pcr)
+
+			# #-Modified Morgan-Morgan-Finney model
+			# if self.SedModel == 2:
+			# 	#-determine soil erosion in transport (G)
+			# 	G = self.mmf.dynamic(self, pcr, Precip, Runoff)
 				
-				#-sediment transport
-				if self.SedTransFLAG == 1:
-					#-read dynamic sediment transport processes mmf
-					self.sediment_transport.dynamic_mmf(self, pcr, Runoff, np, G)
+			# 	#-sediment transport
+			# 	if self.SedTransFLAG == 1:
+			# 		#-read dynamic sediment transport processes mmf
+			# 		self.sediment_transport.dynamic_mmf(self, pcr, Runoff, np, G)
 
-			#-INCA
-			if self.SedModel == 3:
-				#-determine soil erosion
-				Sed = self.inca.dynamic(self, pcr, Precip, Q)
+			# #-INCA
+			# if self.SedModel == 3:
+			# 	#-determine soil erosion
+			# 	Sed = self.inca.dynamic(self, pcr, Precip, Q)
 
-			#-SHETRAN
-			if self.SedModel == 4:
-				#-determine soil erosion
-				Sed = self.shetran.dynamic(self, pcr, np, Precip, Q)
+			# #-SHETRAN
+			# if self.SedModel == 4:
+			# 	#-determine soil erosion
+			# 	Sed = self.shetran.dynamic(self, pcr, np, Precip, Q)
 
-			#-DHSVM
-			if self.SedModel == 5:
-				#-determine soil erosion
-				Sed = self.dhsvm.dynamic(self, pcr, np, Precip, Q)
+			# #-DHSVM
+			# if self.SedModel == 5:
+			# 	#-determine soil erosion
+			# 	Sed = self.dhsvm.dynamic(self, pcr, np, Precip, Q)
 
-			#-HSPF
-			if self.SedModel == 6:
-				#-determine soil erosion
-				Sed = self.hspf.dynamic(self, pcr, np, Precip, Runoff)
+			# #-HSPF
+			# if self.SedModel == 6:
+			# 	#-determine soil erosion
+			# 	Sed = self.hspf.dynamic(self, pcr, np, Precip, Runoff)
 
+		# #-sediment transport
+		# if self.SedTransFLAG == 1:
+		# 	#-read dynamic sediment transport processes musle
+		# 	self.sediment_transport.dynamic_musle(self, pcr)
 
 		#-update current date
 		self.curdate = self.curdate + self.datetime.timedelta(days=1)
@@ -1079,6 +1053,6 @@ for i in tssfiles:
 		os.remove(SPHY.outpath + i)
 	shutil.move(i, SPHY.outpath)
 
-toc = time.clock()
+toc = time.process_time()
 dt = toc - tic
 print('Simulation succesfully completed in '+str(dt)+' seconds!')
