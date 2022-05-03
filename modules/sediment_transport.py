@@ -120,24 +120,57 @@ def init(self, pcr, config, csv, np):
     else:
         self.ResSedID = self.Locations
 
-    #-determine upstream area map
-    self.UpstreamArea = pcr.accuflux(self.FlowDir, 1) * pcr.cellarea() / 10**6
+    # #-determine upstream area map
+    # self.UpstreamArea = pcr.accuflux(self.FlowDir, 1) * pcr.cellarea() / 10**6
 
-    #-determine upstream area smaller than upstream_km2 and define channel cells based on upstream area
-    self.Upstream_km2 = config.getfloat('SEDIMENT_TRANS', 'upstream_km2')
-    self.Channel = self.UpstreamArea > self.Upstream_km2
+    # #-Read input parameters
+    # self.rho = config.getfloat('SEDIMENT_TRANS', 'rho')
+    # self.rho_s = config.getfloat('SEDIMENT_TRANS', 'rho_s')
+    # self.deltaClay = config.getfloat('SEDIMENT_TRANS', 'deltaClay') * 1e-6
+    # self.deltaSilt = config.getfloat('SEDIMENT_TRANS', 'deltaSilt') * 1e-6
+    # self.deltaSand = config.getfloat('SEDIMENT_TRANS', 'deltaSand') * 1e-6
+    self.SedTransEquation = config.getint('SEDIMENT_TRANS', 'SedTransEquation')
+    self.SedTransEquationRills = config.getint('SEDIMENT_TRANS', 'SedTransEquationRills')
 
-    #-determine average slope per stream based on stream order and averaged per subcatchment
-    self.Basin = pcr.subcatchment(self.FlowDir, self.ResSedID)
-    self.StreamOrder = pcr.streamorder(self.FlowDir)
-    self.Streams = pcr.scalar(self.Channel) * pcr.scalar(self.Basin) * 10 + pcr.scalar(self.Channel) * pcr.scalar(self.StreamOrder)
-    self.SlopeStreams = pcr.areaaverage(self.Slope, pcr.nominal(self.Streams))
-    self.SlopeStreams = pcr.ifthenelse(self.Channel == 1, self.SlopeStreams, self.Slope)
+    self.Y_cr_Yalin = config.getfloat('SEDIMENT_TRANS', 'Y_cr_Yalin')
+    self.tau_c_Wong = config.getfloat('SEDIMENT_TRANS', 'tau_c_Wong')
+    self.omega_cr_Govers = config.getfloat('SEDIMENT_TRANS', 'omega_cr_Govers')
+    self.Y_cr_Abrahams = config.getfloat('SEDIMENT_TRANS', 'Y_cr_Abrahams')
 
-    #-read transport capacity parameters
-    self.TC_beta = config.getfloat('SEDIMENT_TRANS', 'TC_beta')
-    self.TC_gamma = config.getfloat('SEDIMENT_TRANS', 'TC_gamma')
+    self.SedConcMax = config.getfloat('SEDIMENT_TRANS', 'SedConcMax')
 
+    if self.SedTransEquation == 6:
+        #-determine upstream area smaller than upstream_km2 and define channel cells based on upstream area
+        self.Upstream_km2 = config.getfloat('SEDIMENT_TRANS', 'upstream_km2')
+        self.Channel = self.UpstreamArea > self.Upstream_km2
+
+        #-determine average slope per stream based on stream order and averaged per subcatchment
+        self.Basin = pcr.subcatchment(self.FlowDir, self.ResSedID)
+        self.StreamOrder = pcr.streamorder(self.FlowDir)
+        self.Streams = pcr.scalar(self.Channel) * pcr.scalar(self.Basin) * 10 + pcr.scalar(self.Channel) * pcr.scalar(self.StreamOrder)
+        self.SlopeStreams = pcr.areaaverage(self.Slope, pcr.nominal(self.Streams))
+        self.SlopeStreams = pcr.ifthenelse(self.Channel == 1, self.SlopeStreams, self.Slope)
+
+        #-read transport capacity parameters
+        self.TC_beta = config.getfloat('SEDIMENT_TRANS', 'TC_beta')
+        self.TC_gamma = config.getfloat('SEDIMENT_TRANS', 'TC_gamma')
+
+    #-Define sediment size classes
+    self.sedimentClasses = ['Clay', 'Silt', 'Sand', 'Gravel']
+
+    #-define some constants
+    self.g = 9.81
+    self.nu = 1e-06
+
+    #-determine median grain size
+    if self.PedotransferFLAG == 1:
+        self.D50 = pcr.ifthenelse(self.RootClayMap > 0.5, pcr.scalar(self.deltaClay), 0)
+        self.D50 = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap > 0.5, self.deltaClay + (self.deltaSilt - self.deltaClay) * (0.5 - self.RootClayMap) / self.RootSiltMap, 0) + self.D50
+        self.D50 = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap < 0.5, self.deltaSilt + (self.deltaSand - self.deltaSilt) * (self.RootSandMap - 0.5) / self.RootSandMap, 0) + self.D50
+    else:
+        self.D50 = config.getfloat('SEDIMENT_TRANS', 'D50') * 1e-6
+    # pcr.report(self.D50, self.outpath + "D50.map")
+    
     #-init processes when reservoir module is used
     if self.ResFLAG == 1:
         #-nominal map with reservoir IDs and extent
@@ -188,16 +221,16 @@ def init(self, pcr, config, csv, np):
         self.LocationsNoResSteps = pcr.scalar(self.LocationsNoRes) * self.subcatchmentStepsMap
 
     #-determine roughness factor for mmf only
-    if self.SedModel == 2:
+    if self.SedTransEquation == 6:
         #-Read flag if channels should be excluded from the detachment by runoff calculation
         self.manningChannelsFLAG = config.getint('SEDIMENT_TRANS', 'manningChannelFLAG')
 
         #-read manning value for channels
         if self.manningChannelsFLAG == 1:
-            self.manningChannel = config.getfloat('SEDIMENT_TRANS', 'manningChannel')
+            self.input.input(self, config, pcr, 'manningChannel', 'ROUTING', 'channelManning', 0)
 
         #-Determine flow velocity for transport capacity calculation
-        self.n_veg_TC = self.mmf.manningVegetation(self, pcr, self.d_TC, self.Diameter, self.NoElements)
+        self.n_veg_TC = self.roughness.manningVegetation(self.d_TC, self.Diameter, self.NoElements)
         self.n_veg_TC = pcr.ifthenelse(self.NoVegetation == 1, 0, self.n_veg_TC)
         self.n_veg_TC = pcr.ifthenelse(self.NoErosion == 1, 0, self.n_veg_TC)
         self.n_veg_TC = pcr.ifthenelse(self.n_table > 0, self.n_table, self.n_veg_TC)
@@ -209,8 +242,8 @@ def init(self, pcr, config, csv, np):
 
         #-Determine flow velocity after harvest, manning for tilled conditions is used
         if self.harvest_FLAG:
-            self.n_veg_TC_harvest = self.mmf.manningVegetation(self, pcr, self.d_field, self.Diameter_harvest, self.NoElements_harvest)
-            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_field_harvest)
+            self.n_veg_TC_harvest = self.roughness.manningVegetation(self.d_field, self.Diameter_harvest, self.NoElements_harvest)
+            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_field_harvest)
             self.n_TC_harvest = (self.n_soil**2 + self.n_veg_TC_harvest**2)**0.5
             #-set manning value of channels to predetermined value
             if self.manningChannelsFLAG == 1:
@@ -223,54 +256,271 @@ def init(self, pcr, config, csv, np):
         #-Determine roughness factor for transport capacity calculation
         self.roughnessFactor = self.v_TC / self.v_b
 
-#-initial conditions sediment transport
-def initial(self, pcr, config):
-    try:
-        self.SYieldR = pcr.readmap(self.inpath + config.get('SEDIMENT_TRANS', 'Sed_init'))
-    except:
-        self.SYieldR = config.getfloat('SEDIMENT_TRANS', 'Sed_init')
+    #-import conservation module
+    import modules.conservation
+    self.conservation = modules.conservation
+    del modules.conservation
 
-#-dynamic sediment transport processes musle
-def dynamic_musle(self, pcr):
-    #-transport capacity
-    TC = self.sediment_transport.TC(self, pcr, (Q * 3600 * 24) / pcr.cellarea() * 1000)
+    #-read init processes sediment transport
+    self.conservation.init(self, pcr, config)
 
-    #-report the transport capacity per subcatchment
-    self.reporting.reporting(self, pcr, 'TC', TC)
+# #-initial conditions sediment transport
+# def initial(self, pcr, config):
+#     try:
+#         self.SYieldR = pcr.readmap(self.inpath + config.get('SEDIMENT_TRANS', 'Sed_init'))
+#     except:
+#         self.SYieldR = config.getfloat('SEDIMENT_TRANS', 'Sed_init')
 
-    #-determine sediment yield at reservoirs
-    tempvar = self.sediment_transport.SedTrans(self, pcr, np, sed, TC)
-    sedimentYield = tempvar[0]
-    sedDep = tempvar[1]
+# #-dynamic sediment transport processes musle
+# def dynamic_musle(self, pcr):
+#     #-transport capacity
+#     TC = self.sediment_transport.TC(self, pcr, (Q * 3600 * 24) / pcr.cellarea() * 1000)
 
-    #-report the deposition in channel cells
-    self.reporting.reporting(self, pcr, 'SedDep', sedDep)
+#     #-report the transport capacity per subcatchment
+#     self.reporting.reporting(self, pcr, 'TC', TC)
 
-    #-report sediment yield in the reservoirs
-    self.reporting.reporting(self, pcr, 'SYieldRA', sedimentYield)
+#     #-determine sediment yield at reservoirs
+#     tempvar = self.sediment_transport.SedTrans(self, pcr, np, sed, TC)
+#     sedimentYield = tempvar[0]
+#     sedDep = tempvar[1]
 
-#-dynamic sediment transport processes mmf
-def dynamic_mmf(self, pcr, Runoff, np, G):
-    #-change the flow factor for harvested areas to actual and tillage conditions
-    if self.harvest_FLAG == 1:
-        self.roughnessFactorUpdate = pcr.ifthenelse(self.Harvested == 1, self.v_TC_harvest / self.v_b, self.roughnessFactor)
-    else:
-        self.roughnessFactorUpdate = self.roughnessFactor
+#     #-report the deposition in channel cells
+#     self.reporting.reporting(self, pcr, 'SedDep', sedDep)
+
+#     #-report sediment yield in the reservoirs
+#     self.reporting.reporting(self, pcr, 'SYieldRA', sedimentYield)
+
+# #-dynamic sediment transport processes mmf
+# def dynamic_mmf(self, pcr, Runoff, np, G):
+#     #-change the flow factor for harvested areas to actual and tillage conditions
+#     if self.harvest_FLAG == 1:
+#         self.roughnessFactorUpdate = pcr.ifthenelse(self.Harvested == 1, self.v_TC_harvest / self.v_b, self.roughnessFactor)
+#     else:
+#         self.roughnessFactorUpdate = self.roughnessFactor
     
-    #-determine transport capacity
-    TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
+#     #-determine transport capacity
+#     TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
 
-    #-report the transport capacity
-    self.reporting.reporting(self, pcr, 'TC', TC)
+#     #-report the transport capacity
+#     self.reporting.reporting(self, pcr, 'TC', TC)
 
-    #-determine sediment yield at stations
-    sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, G * pcr.cellarea() / 1000, TC)
+#     #-determine sediment yield at stations
+#     sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, G * pcr.cellarea() / 1000, TC)
 
-    #-report the sediment deposition by transport capacity (ton/day)
-    self.reporting.reporting(self, pcr, 'SedDep', sedDep)
+#     #-report the sediment deposition by transport capacity (ton/day)
+#     self.reporting.reporting(self, pcr, 'SedDep', sedDep)
 
-    #-report sediment yield in the stations (ton/day)
-    self.reporting.reporting(self, pcr, 'SedYld', sedYield)
+#     #-report sediment yield in the stations (ton/day)
+#     self.reporting.reporting(self, pcr, 'SedYld', sedYield)
 
-    #-report sediment flux in the stations (ton/day)
-    self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
+#     #-report sediment flux in the stations (ton/day)
+#     self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
+
+# #-Shear stress (N/m2)
+# def ShearStress(rho, g, h, S):
+#     tau = rho * g * h * S
+#     return tau
+
+# #-Critical shear stress (N/m2)
+# def ShearStressCritical(pcr, tau, rho_s, rho, g, D_50, nu):
+#     R_star = pcr.max(0.03, (D_50 * (tau / rho)**0.5) / nu)
+
+#     a_3 = pcr.scalar(R_star > 400) * 0.056
+#     a_3 = a_3 + pcr.scalar(pcr.pcrand(R_star > 135, R_star <= 400)) * 0.03
+#     a_3 = a_3 + pcr.scalar(pcr.pcrand(R_star > 30, R_star <= 135)) * 0.013
+#     a_3 = a_3 + pcr.scalar(pcr.pcrand(R_star > 6, R_star <= 30)) * 0.033
+#     a_3 = a_3 + pcr.scalar(pcr.pcrand(R_star > 1, R_star <= 6)) * 0.1
+#     a_3 = a_3 + pcr.scalar(pcr.pcrand(R_star >= 0.03, R_star <= 1)) * 0.1
+
+#     b_3 = pcr.scalar(R_star > 400) * 0
+#     b_3 = b_3 + pcr.scalar(pcr.pcrand(R_star > 135, R_star <= 400)) * 0.1
+#     b_3 = b_3 + pcr.scalar(pcr.pcrand(R_star > 30, R_star <= 135)) * 0.28
+#     b_3 = b_3 + pcr.scalar(pcr.pcrand(R_star > 6, R_star <= 30)) * 0
+#     b_3 = b_3 + pcr.scalar(pcr.pcrand(R_star > 1, R_star <= 6)) * -0.62
+#     b_3 = b_3 + pcr.scalar(pcr.pcrand(R_star >= 0.03, R_star <= 1)) * -0.3
+
+#     tau_cr = (rho_s - rho) * g * D_50 * a_3 * R_star**b_3
+#     return tau_cr
+
+#-Determine transport capacity (g/l)
+def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
+    if SedTransEquation == 1: # Govers (1990)
+        c = ((D50 * 1e6 + 5) / 0.32)**(-0.6)
+        d = ((D50 * 1e6 + 5) / 300)**(0.25)
+        omega = self.flowVelocity * 100 * self.slopeChannel
+        # omega_cr = 0.4
+        omega_cr = self.omega_cr_Govers
+        TC_f = c * pcr.max(0, omega - omega_cr)**d * self.rho_s
+        TC = pcr.max(TC_f / (1 - TC_f/self.rho_s), 0)
+    elif SedTransEquation == 2: # Yalin (1963)
+        R = self.hydraulicRadius
+        s = rho_s / rho
+        Y = (R * S) / (D50 * (s-1))
+        U_star = pcr.sqrt(g * R * S)
+        # Y_cr = 0.06
+        Y_cr = self.Y_cr_Yalin
+        ar = 2.45 / S**0.4 * pcr.sqrt(pcr.max(Y_cr * (Y / Y_cr - 1), 1e-10))
+        P = 0.635 * (Y / Y_cr - 1) * (1 - (pcr.ln(1 + ar)) / ar)
+        qs = (rho_s - rho) * D50 * U_star * P
+        TC = qs * w / pcr.max(Q, 1e-10)
+    elif SedTransEquation == 3: # Abrahams et al. (2001)
+        R = self.hydraulicRadius
+        s = rho_s / rho
+        Y = pcr.max((R * S) / (D50 * (s-1)), 1e-10)
+        U_star = pcr.max(pcr.sqrt(g * R * S), 1e-10)
+        # Y_cr = 0.06
+        Y_cr = self.Y_cr_Abrahams
+        Cr = 0
+        Dr = 0.1
+        a = 10**(-0.42 * (Cr/Dr)**0.2)
+        b = 3.4
+        c = 1 + 0.42 * (Cr/Dr)**0.2
+        w_i = (g * (s - 1) * D50)**0.5
+        d = pcr.ifthenelse((w_i / U_star) > 3, pcr.scalar(0), -0.5)
+        qb = a * D50 * U_star * Y * pcr.max(1 - Y_cr / Y, 0)**b * (self.flowVelocity / U_star)**c * (w_i / U_star)**d
+        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
+    elif SedTransEquation == 4: # Wong and Parker (2006)
+        R = (rho_s / rho) - 1
+        tau_star = (S * h) / (R * D50)
+        alpha = 3.97
+        beta = 1.5
+        # tau_c = 0.0495
+        tau_c = self.tau_c_Wong
+        q_star = alpha * pcr.max(tau_star - tau_c, 0)**beta
+        qb = q_star * (R * g * D50)**0.5 * D50
+        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
+    elif SedTransEquation == 5: # Wilcock and Crowe (2003)
+        s = (rho_s / rho)
+        tau_rm_star = 0.021 + 0.015 * pcr.exp(-20 * self.RootSandMap)
+        tau_rm = tau_rm_star * (s-1) * rho * g * self.D50
+        b = 0.67 / (1 + pcr.exp(1.5 - D50 / self.D50))
+        tau_r = tau_rm * (D50 / self.D50)**b
+        tau = rho * g * h * S
+        phi = tau / tau_r
+        W = pcr.ifthenelse(phi < 1.35, 0.002 * phi**7.5, 14 * (1 - 0.894/(phi**0.5))**4.5)
+        u_star = (tau / rho)**0.5
+        qb = (W * u_star**3) / ((s-1) * g)
+        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
+    return TC
+
+
+#-dynamic sediment transport processes
+def dynamic(self, pcr, np, Q, Sed):
+    if self.SedTransEquation == 6:
+        #-change the flow factor for harvested areas to actual and tillage conditions
+        if self.harvest_FLAG == 1:
+            self.roughnessFactorUpdate = pcr.ifthenelse(self.Harvested == 1, self.v_TC_harvest / self.v_b, self.roughnessFactor)
+        else:
+            self.roughnessFactorUpdate = self.roughnessFactor
+
+        #-overwrite roughness factor with the value for structural conservation measures
+        if self.conservationFLAG == 1:
+            self.roughnessFactorUpdate = pcr.ifthenelse(self.conservationMeasures > 0, self.v_TC_conservation / self.v_b, self.roughnessFactorUpdate)
+        
+        #-determine runoff
+        Runoff = (Q * 3600 * 24) / pcr.cellarea() * 1000
+
+        #-determine transport capacity
+        TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
+
+        #-report the transport capacity
+        self.reporting.reporting(self, pcr, 'TC', TC)
+
+        #-determine sediment yield at stations
+        sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, Sed, TC)
+
+        #-report the sediment deposition by transport capacity (ton/day)
+        self.reporting.reporting(self, pcr, 'SedDep', sedDep)
+
+        #-report sediment yield in the stations (ton/day)
+        self.reporting.reporting(self, pcr, 'SedYld', sedYield)
+
+        #-report sediment flux in the stations (ton/day)
+        self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
+
+    else:
+        #-determine shear stress (N/m2)
+        if self.travelTimeFLAG == 0:
+        #     tau = self.sediment_transport.ShearStress(self.rho, self.g, self.waterDepth, self.Slope)
+        # else:
+            #-determine water depth (m) and flow depth (m)
+            h, l = self.shetran.Manning(self, pcr, Q, self.n_table_SHETRAN, self.WD_ratio_SHETRAN, self.Slope)
+
+        #     #-determine shear stress (N/m2)
+        #     tau = self.shetran.ShearStress(self, pcr, self.rho, self.g, h, self.Slope)
+
+        # pcr.report(self.waterDepth, self.outpath + "waterDepth_" + str(self.counter).zfill(3) + ".map")
+        # pcr.report(tau, self.outpath + "tau_" + str(self.counter).zfill(3) + ".map")
+
+        #-For loop over the sediment classes
+        for sedimentClass in self.sedimentClasses:
+            #-Define median grain size for sediment class
+            D50 = getattr(self, "delta" + sedimentClass)
+
+            #-Determine transport capacity of the flow (g/l)
+            if self.travelTimeFLAG == 1:
+                TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquation)
+            else:
+                TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, h, l, Q, D50, self.Slope, self.SedTransEquation)
+            # pcr.report(TC, self.outpath + "TC_channel_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+
+            #-Determine transport capacity in the rills when rills are simulated
+            if self.RillFLAG == 1:
+                #-Determine transport capacity of the flow (g/l)
+                if self.travelTimeFLAG == 1:
+                    TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquationRills)
+                else:
+                    TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, h, l, Q, D50, self.Slope, self.SedTransEquationRills)
+
+                #-Update transport capacity for the hillslopes
+                TC = pcr.ifthenelse(self.channelHillslope == 2, TC_Rills, TC)
+                # pcr.report(TC_Rills, self.outpath + "TC_hillslope_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+
+            #-apply maximum allowable sediment concentration (g/l = kg/m3)
+            TC = pcr.min(TC, self.SedConcMax)
+            # pcr.report(TC, self.outpath + "TC_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+
+            #-determine transport capacity (ton/day)
+            # pcr.report(TC, self.outpath + "sedConc_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+            TC = TC * Q * 1e-3 * (24 * 60 * 60)
+            # pcr.report(TC, self.outpath + "TC_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+
+            #-store transport capacity for sediment class
+            setattr(self, "TC" + sedimentClass, TC)
+
+        #     #-When MMF is used, obtain hillslope erosion per sediment class from attribute
+        #     if sedimentClass == 'Gravel':
+        #         Sed = self.ones * 0
+        #     else:
+        #         if self.ErosionModel == 2:
+        #             Sed = getattr(self, "Sed" + sedimentClass)
+        #         else:
+        #             #-Multiply hillslope erosion by sediment class fraction
+        #             Sed = Sed * getattr(self, "Root" + sedimentClass + "Map")
+        #     pcr.report(Sed, self.outpath + "Sed_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+
+        #     #-determine sediment yield at stations
+        #     sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, Sed, TC)
+        #     pcr.report(sedFlux, self.outpath + "sedFlux_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+        #     pcr.report(sedDep, self.outpath + "sedDep_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+
+        #     #-Assign sediment yield, deposition and flux values to sediment class
+        #     setattr(self, "sedYield" + sedimentClass, sedYield)
+        #     setattr(self, "sedDep" + sedimentClass, sedDep)
+        #     setattr(self, "sedFlux" + sedimentClass, sedFlux)
+
+        #-report the transport capacity (ton/day)
+        TC = self.TCClay + self.TCSilt + self.TCSand + self.TCGravel
+        self.reporting.reporting(self, pcr, 'TC', TC)
+        # pcr.report(TC, self.outpath + "TC_" + str(self.counter).zfill(3) + ".map")
+
+        # #-report sediment yield in the stations (ton/day)
+        # sedYield = self.sedYieldClay + self.sedYieldSilt + self.sedYieldSand
+        # self.reporting.reporting(self, pcr, 'SedYld', sedYield)
+
+        # #-report sediment flux in the stations (ton/day)
+        # sedFlux = self.sedFluxClay + self.sedFluxSilt + self.sedFluxSand
+        # self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
+        # # pcr.report(sedFlux, self.outpath + "sedFlux_" + str(self.counter).zfill(3) + ".map")
+
+        # return TC
