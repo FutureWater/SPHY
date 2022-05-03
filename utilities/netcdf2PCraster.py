@@ -32,7 +32,7 @@ from math import *
 filecache = dict()
 
 #-initial processes to determine the x and coordinates of the model grid and netcdf grid
-def netcdf2pcrInit(self, pcr, forcing):
+def netcdf2pcrInit(self, pcr, config, forcing):
     #-define input and ouput projections
     if getattr(self, forcing + 'InProj') == "rotated":
         inProj = Proj(init="epsg:4326")
@@ -73,20 +73,24 @@ def netcdf2pcrInit(self, pcr, forcing):
         yrot = f.variables[getattr(self, forcing + 'VarY')][:]
 
         #-get coordinates of north pole
-        npLat = f.variables[getattr(self, forcing + 'VarX')].grid_north_pole_latitude
-        npLon = f.variables[getattr(self, forcing + 'VarX')].grid_north_pole_longitude
+        try:
+            npLat = f.variables[getattr(self, forcing + 'VarX')].grid_north_pole_latitude
+            npLon = f.variables[getattr(self, forcing + 'VarX')].grid_north_pole_longitude
+        except:
+            npLat = f.variables["rotated_pole"].grid_north_pole_latitude
+            npLon = f.variables["rotated_pole"].grid_north_pole_longitude
 
         #-transform x and y coordinates to grid
-        xrot,yrot = np.meshgrid(xrot, yrot)
+        if len(xrot.shape) == 1:
+            xrot,yrot = np.meshgrid(xrot, yrot)
 
         #-transform rotated grid to lat,lon-coordinates
         xLatLon = xrot * 0
         yLatLon = yrot * 0
-        for idx, row in enumerate(xrot):
-            for idy, val in enumerate(row):
-                x, y = rotated_grid_transform((xrot[idx, idy], yrot[idx, idy]), 2, (npLon, npLat))
-                xLatLon[idx, idy] = x
-                yLatLon[idx, idy] = y
+        for index,value in np.ndenumerate(xrot):
+            x, y = rotated_grid_transform((xrot[index], yrot[index]), 2, (npLon, npLat))
+            xLatLon[index] = x
+            yLatLon[index] = y
 
         #-transform x,y-coordinates to 2d array
         xyLatLon = [np.array(xLatLon).flatten(), np.array(yLatLon).flatten()]
@@ -169,16 +173,22 @@ def netcdf2pcrDynamic(self, pcr, forcing): #ncFile, varName, dateInput, method, 
     filecache[getattr(self, forcing + 'NC')] = f
     
     #-get index from netcdf corresponding with current date
-    idx = int(nc.date2index(self.curdate, f.variables['time'], select ='exact'))
+    idx = int(nc.date2index(self.curdate, f.variables['time'], select ='nearest'))
 
     #-get raw netcdf gridded data from netcdf, transform to array and multiply with factor
     if getattr(self, forcing + 'InProj') == "rotated":
-        z = f.variables[getattr(self, forcing + 'VarName')][idx, getattr(self, forcing + 'xyUL'):(getattr(self, forcing + 'xyLL') + 1), getattr(self, forcing + 'xyUR'):(getattr(self, forcing + 'xyLR') + 1)]
+        z = f.variables[getattr(self, forcing + 'VarName')][idx, ..., getattr(self, forcing + 'xyUL'):(getattr(self, forcing + 'xyLL') + 1), getattr(self, forcing + 'xyUR'):(getattr(self, forcing + 'xyLR') + 1)]
+        # print(z.shape)
+        # exit()
     else:
-        z = f.variables[getattr(self, forcing + 'VarName')][idx, getattr(self, forcing + 'yIdxSta'):(getattr(self, forcing + 'yIdxEnd') + 1), getattr(self, forcing + 'xIdxSta'):(getattr(self, forcing + 'xIdxEnd') + 1)]
+        z = f.variables[getattr(self, forcing + 'VarName')][idx, ..., getattr(self, forcing + 'yIdxSta'):(getattr(self, forcing + 'yIdxEnd') + 1), getattr(self, forcing + 'xIdxSta'):(getattr(self, forcing + 'xIdxEnd') + 1)]
     z = np.asarray(z).ravel()
     with np.errstate(invalid='ignore'): # surpress error message when there are already nans in the z array
         z = np.where(z<=-9999, np.nan, z) * getattr(self, forcing + 'Factor')
+
+    # print(getattr(self, forcing + 'y'))
+    # print(z)
+    # exit()
     
     #-remove nans from arrays
     x = getattr(self, forcing + 'x')[~np.isnan(z)]
@@ -192,8 +202,16 @@ def netcdf2pcrDynamic(self, pcr, forcing): #ncFile, varName, dateInput, method, 
     #-convert to PCRaster Python map
     output = pcr.numpy2pcr(pcr.Scalar, zi, -9999)
 
-    #-cover no data cells with area average
-    output = pcr.cover(output, pcr.areaaverage(output, self.clone))
+    #-determine area with no data
+    nodata = pcr.nominal(pcr.abs(pcr.scalar(pcr.defined(output)) - 1))
+
+    #-interpolate edge of area with no data 
+    pcr.setglobaloption("unitcell")
+    edgeInterpolation = pcr.windowaverage(output, pcr.scalar(nodata) * 2)
+    pcr.setglobaloption("unittrue")
+
+    #-cover the no data cells with the average of the interpolated edge
+    output = pcr.cover(output, pcr.areaaverage(edgeInterpolation, self.clone))
 
     return output
 
