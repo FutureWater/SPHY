@@ -599,8 +599,6 @@ class sphy(pcrm.DynamicModel):
 
 		#-Add irrigation water to precipitation
 		if self.IrrigationFLAG ==1:
-			# IrrigationWater = 0 
-			#self.IrrigationWater = 0
 			Precip = Precip + self.IrrigationWater
 
 		#-Temperature and determine reference evapotranspiration
@@ -697,7 +695,6 @@ class sphy(pcrm.DynamicModel):
 
 		#-Actual evapotranspiration
 		if self.PlantWaterStressFLAG == 1:
-			# etreddry = self.ET.ks(self, pcr, ETpot)
 			etreddry, RAW = self.ET.ks(self, pcr, ETpot)
 		else:
 			etreddry = pcr.max(pcr.min((self.RootWater - self.RootDry) / (self.RootWilt - self.RootDry), 1), 0)
