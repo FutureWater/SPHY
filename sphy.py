@@ -661,16 +661,12 @@ class sphy(pcrm.DynamicModel):
 
 		#-Add irrigation water to precipitation
 		if self.IrrigationFLAG ==1:
-			# IrrigationWater = 0 
-			#self.IrrigationWater = 0
 			Precip = Precip + self.IrrigationWater
 
 		#-Temperature and determine reference evapotranspiration
 		if self.tempNetcdfFLAG == 1:
 			#-read forcing by netcdf input
 			Temp = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Temp')
-			# pcr.report(Temp, self.outpath + "Temp_aemet.map")
-			# exit()
 		else:
 			#-read forcing by map input
 			Temp = pcr.readmap(pcrm.generateNameT(self.Tair, self.counter))
@@ -763,7 +759,6 @@ class sphy(pcrm.DynamicModel):
 
 		#-Actual evapotranspiration
 		if self.PlantWaterStressFLAG == 1:
-			# etreddry = self.ET.ks(self, pcr, ETpot)
 			etreddry, RAW = self.ET.ks(self, pcr, ETpot)
 		else:
 			etreddry = pcr.max(pcr.min((self.RootWater - self.RootDry) / (self.RootWilt - self.RootDry), 1), 0)
@@ -857,12 +852,7 @@ class sphy(pcrm.DynamicModel):
 
 		#-Determine irrigation water for next time step
 		if self.IrrigationFLAG == 1 and self.PlantWaterStressFLAG == 1:
-			# self.IrrigationWater,IrrigationTOT,HorticultureETa,HorticultureETp= self.irrigation.dynamic(self,pcr,pcrm,ETpot,ETact,self.RootWater)
 			self.IrrigationWater = self.irrigation.dynamic(self, pcr, RAW)
-			# self.reporting.reporting(self,pcr,'TotIrr', self.IrrigationWater)
-			# self.reporting.reporting(self,pcr,'AreaIrr',IrrigationTOT) 
-			# self.reporting.reporting(self,pcr, 'ETaCrop' , HorticultureETa)
-			# self.reporting.reporting(self,pcr,'ETpCrop', HorticultureETp )
 
 		#-Groundwater calculations
 		if self.GroundFLAG == 1:
