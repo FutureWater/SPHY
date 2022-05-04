@@ -79,7 +79,7 @@ def FlowVelocity(self, pcr, manning, waterDepth):
 #-Particle fall number (N_f; -)
 def ParticleFallNumber(self, pcr, delta, velocity, waterDepth):
     v_s = (float(1)/18 * (delta ** 2) * (self.rho_s - self.rho) * 9.81) / (self.eta)
-    N_f = (pcr.celllength() / pcr.cos(self.Slope) * v_s) / (velocity * waterDepth)
+    N_f = (pcr.celllength() / pcr.cos(self.Slope) * v_s) / pcr.max(velocity * waterDepth, 1e-6)
     return N_f
 
 #-Percentage of the detached sediment that is deposited (DEP; %)
