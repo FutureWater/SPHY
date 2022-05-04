@@ -123,6 +123,10 @@ class sphy(pcrm.DynamicModel):
 		pcr.setclone(self.clonefile)
 		self.clone = pcr.ifthen(pcr.readmap(self.clonefile), pcr.boolean(1))
 		
+		#-create dummy map with only 1s
+		self.ones = pcr.scalar(self.clone) * 0 + 1
+
+		#-create variable with cell area
 		self.cellArea = pcr.cellvalue(pcr.cellarea(),1)[0]
 
 		#-read general maps
