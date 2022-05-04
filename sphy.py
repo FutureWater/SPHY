@@ -261,6 +261,19 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes glacier module
 			self.snow.init(self, pcr, config)
 
+		#-read irrigation flag
+		self.IrrigationFLAG = config.getint('IRRIGATION','IrrigationFLAG')
+
+		#-read and set irrigation maps and parameters if irrigation module is used
+		if self.IrrigationFLAG == 1:
+			#-import irrigation module
+			import modules.irrigation
+			self.irrigation = modules.irrigation
+			del modules.irrigation 
+
+			#-read init process irrigation
+			self.irrigation.init(self,pcr,config)
+
 		#-read and set climate forcing and the calculation of etref
 
 		#-read precipitation data
@@ -476,10 +489,13 @@ class sphy(pcrm.DynamicModel):
 		if self.DynVegFLAG == 1:
 			#-read initial conditions dynamic vegetation
 			self.dynamic_veg.initial(self, pcr)
-
 		elif self.KcStatFLAG == 0:
 			#-set initial kc value to one, if kc map is not available for first timestep
 			self.KcOld = pcr.scalar(1)
+
+		if self.IrrigationFLAG == 1:
+			#-read initial conditions irrigation
+			self.irrigation.initial(self,pcr)
 
 		#-initial groundwater properties
 		if self.GroundFLAG == 1:
@@ -581,6 +597,12 @@ class sphy(pcrm.DynamicModel):
 		self.reporting.reporting(self, pcr, 'TotPrec', Precip)
 		self.reporting.reporting(self, pcr, 'TotPrecF', Precip * (1-self.GlacFrac))
 
+		#-Add irrigation water to precipitation
+		if self.IrrigationFLAG ==1:
+			# IrrigationWater = 0 
+			#self.IrrigationWater = 0
+			Precip = Precip + self.IrrigationWater
+
 		#-Temperature and determine reference evapotranspiration
 		if self.tempNetcdfFLAG == 1:
 			#-read forcing by netcdf input
@@ -675,7 +697,8 @@ class sphy(pcrm.DynamicModel):
 
 		#-Actual evapotranspiration
 		if self.PlantWaterStressFLAG == 1:
-			etreddry = self.ET.ks(self, pcr, ETpot)
+			# etreddry = self.ET.ks(self, pcr, ETpot)
+			etreddry, RAW = self.ET.ks(self, pcr, ETpot)
 		else:
 			etreddry = pcr.max(pcr.min((self.RootWater - self.RootDry) / (self.RootWilt - self.RootDry), 1), 0)
 		self.reporting.reporting(self, pcr, 'PlantStress', 1 - etreddry)
@@ -765,6 +788,10 @@ class sphy(pcrm.DynamicModel):
 		self.RainR = self.RootRR + self.RootDR
 		#-Report rain runoff
 		self.reporting.reporting(self, pcr, 'TotRainRF', self.RainR)
+
+		#-Determine irrigation water for next time step
+		if self.IrrigationFLAG == 1 and self.PlantWaterStressFLAG == 1:
+			self.IrrigationWater = self.irrigation.dynamic(self, pcr, RAW)
 
 		#-Groundwater calculations
 		if self.GroundFLAG == 1:
