@@ -207,20 +207,20 @@ def init(self, pcr, config):
 #-dynamic processes
 def dynamic(self, pcr, Precip, Runoff):
     #-determine canopy cover from LAI
-    if self.CanopyCoverLAIFlag == 1 and self.DynVegFLAG == 1:
+    if self.DynVegFLAG:
         self.CC = pcr.min(1, self.LAI)
     else:
         self.CC = self.CC_table
 
     #-determine areas that have been harvested
     if self.harvest_FLAG:
-        self.Harvested = self.Slope * 0
+        self.Harvested = self.ones * 0
         self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
         self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
         self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
     
     #-set canopy cover to value from MMF harvest table for months between harvest and sowing
-    if self.CanopyCoverLAIFlag == 0 and self.harvest_FLAG:
+    if self.DynVegFLAG == 0 and self.harvest_FLAG:
         self.CC = pcr.ifthenelse(self.Harvested == 1, self.CC_harvest, self.CC_table)
 
     #-set ground cover to value from MMF harvest table for months between harvest and sowing
