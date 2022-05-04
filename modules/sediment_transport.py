@@ -210,7 +210,7 @@ def init(self, pcr, config, csv, np):
         #-Determine flow velocity after harvest, manning for tilled conditions is used
         if self.harvest_FLAG:
             self.n_veg_TC_harvest = self.mmf.manningVegetation(self, pcr, self.d_field, self.Diameter_harvest, self.NoElements_harvest)
-            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_field_harvest)
+            self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_field_harvest)
             self.n_TC_harvest = (self.n_soil**2 + self.n_veg_TC_harvest**2)**0.5
             #-set manning value of channels to predetermined value
             if self.manningChannelsFLAG == 1:
@@ -222,6 +222,14 @@ def init(self, pcr, config, csv, np):
 
         #-Determine roughness factor for transport capacity calculation
         self.roughnessFactor = self.v_TC / self.v_b
+
+    #-import conservation module
+    import modules.conservation
+    self.conservation = modules.conservation
+    del modules.conservation
+
+    #-read init processes sediment transport
+    self.conservation.init(self, pcr, config)
 
 #-initial conditions sediment transport
 def initial(self, pcr, config):
@@ -257,6 +265,10 @@ def dynamic_mmf(self, pcr, Runoff, np, G):
     else:
         self.roughnessFactorUpdate = self.roughnessFactor
     
+        #-overwrite roughness factor with the value for structural conservation measures
+        if self.conservationFLAG == 1:
+            self.roughnessFactorUpdate = pcr.ifthenelse(self.conservationMeasures > 0, self.v_TC_conservation / self.v_b, self.roughnessFactorUpdate)
+
     #-determine transport capacity
     TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
 
