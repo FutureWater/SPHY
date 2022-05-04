@@ -60,6 +60,7 @@ class sphy(pcrm.DynamicModel):
 		import datetime, calendar, ET, rootzone, subzone
 		import utilities.reporting as reporting
 		import utilities.timecalc as timecalc
+		import utilities.input as input
 		import utilities.netcdf2PCraster as netcdf2PCraster
 		from math import pi
 		#-standard python modules
@@ -70,10 +71,11 @@ class sphy(pcrm.DynamicModel):
 		self.reporting = reporting
 		self.timecalc = timecalc
 		self.netcdf2PCraster = netcdf2PCraster
+		self.input = input
 		self.ET = ET
 		self.rootzone = rootzone
 		self.subzone = subzone
-		del datetime, calendar, pi, reporting, timecalc, ET, rootzone, subzone
+		del datetime, calendar, pi, reporting, input, timecalc, ET, rootzone, subzone
 		#-import additional modules if required
 		if self.GlacFLAG == 1:
 			self.SnowFLAG = 1
