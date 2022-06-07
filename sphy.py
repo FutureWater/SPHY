@@ -677,13 +677,15 @@ class sphy(pcrm.DynamicModel):
 				TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmin')
 			else:
 				#-read forcing by map input
-				TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.counter))
+				# TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.counter))
+				TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.curdate.timetuple().tm_yday))
 			if self.TmaxNetcdfFLAG == 1:
 				#-read forcing by netcdf input
 				TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmax')
 			else:
 				#-read forcing by map input
-				TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.counter))
+				# TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.counter))
+				TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.curdate.timetuple().tm_yday))
 			ETref = self.Hargreaves.Hargreaves(pcr, self.Hargreaves.extrarad(self, pcr), Temp, TempMax, TempMin)
 		else:
 			ETref = pcr.readmap(pcrm.generateNameT(self.ETref, self.counter))
