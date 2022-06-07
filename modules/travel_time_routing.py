@@ -149,6 +149,8 @@ def flow_velocity_iteration(self, pcr, qOld):
             self.roughness.dynamic(self, pcr)
             # self.manningHillslope = self.manningHillslopeTest #-rill roughness equal to channel roughness
             self.manningChannel = pcr.ifthenelse(self.channelHillslope == 2, self.manningHillslopeTest, self.manningChannel)
+            if self.conservationFLAG == 1:
+                self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
             self.manningFP = pcr.ifthenelse(self.channelHillslope == 2, self.manningHillslope, self.manningFP)
 
         #-Determine flow velocity (m/day)
