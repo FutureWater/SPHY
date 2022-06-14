@@ -961,7 +961,8 @@ class sphy(pcrm.DynamicModel):
 				# else:
 				# 	Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
 				# 	Q_m3 = Q
-				Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
+				# Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
+				Q_mm = TotR
 				Q_m3 = Q
 			else: 
 				Q_mm = TotR

@@ -193,11 +193,13 @@ def dynamic(self, pcr, pcrm, np, Q, Sed):
         TC = getattr(self, "TC" + sedimentClass)
 
         #-get bed thickness for sediment class
-        sedimentStore = getattr(self, "sedimentStore" + sedimentClass)
+        # sedimentStore = getattr(self, "sedimentStore" + sedimentClass)
+        sedimentStore = getattr(self, "sedimentStoreInitial" + sedimentClass) #-reset channel storage to initial value
 
         #-set sediment storage for hillslopes to minimum defined by initial channel bed depth
         # sedimentStoreInitial = pcr.ifthenelse(self.channelHillslope == 2, getattr(self, "sedimentStoreInitial" + sedimentClass), sedimentStore)
-        sedimentStoreInitial = pcr.ifthenelse(self.channelHillslope == 2, 0, sedimentStore) #-no sediment store on hillslopes
+        # sedimentStoreInitial = pcr.ifthenelse(self.channelHillslope == 2, 0, sedimentStore) #-no sediment store on hillslopes
+        sedimentStoreInitial = sedimentStore #-sediment store on both hillslopes and channels
 
         #-determine the amount of sediment available from the channel bed
         # pcr.report(sedimentStore, self.outpath + "sedimentStore_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
@@ -216,9 +218,10 @@ def dynamic(self, pcr, pcrm, np, Q, Sed):
         sedimentStore = sedDep
         # pcr.report(sedimentStore, self.outpath + "sedimentStore_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
 
-        setattr(self, "sedimentStore" + sedimentClass, sedimentStore)
-
         channelChange = sedimentStore - sedimentStoreInitial
+
+        sedimentStore = getattr(self, "sedimentStoreInitial" + sedimentClass) #-reset channel storage to initial value
+        setattr(self, "sedimentStore" + sedimentClass, sedimentStore)
 
         #-Assign sediment yield, deposition and flux values to sediment class
         setattr(self, "sedYield" + sedimentClass, sedYield)

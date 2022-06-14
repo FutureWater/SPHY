@@ -56,12 +56,12 @@ def DetachmentRunoff(self, pcr, DR, texture, Q):
     H = DR * texture * Q**1.5 * pcr.max(0, 1 - (self.NoErosion + self.Cover)) * pcr.sin(self.Slope)**(0.3) * 1e-3
 
     #-set values in channels to 0 in case channels should be excluded
-    if self.travelTimeFLAG == 1:
-        H = pcr.ifthenelse(self.channelHillslope == 2, H, 0)
-    elif self.exclChannelsFLAG == 1:
-        H = H * self.Hillslope
-    # if self.exclChannelsFLAG == 1:
+    # if self.travelTimeFLAG == 1:
+    #     H = pcr.ifthenelse(self.channelHillslope == 2, H, 0)
+    # elif self.exclChannelsFLAG == 1:
     #     H = H * self.Hillslope
+    if self.exclChannelsFLAG == 1:
+        H = H * self.Hillslope
 
     return H
 
