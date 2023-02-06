@@ -132,9 +132,12 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
         # pcr.report(self.channelStorage, self.outpath + "channelStorage_" + str(self.counter).zfill(3) + ".map")
 
         #-Determine flow velocity (m/day)
-        flowVelocity = self.travel_time_routing.getFlowVelocity(self, pcr, self.waterDepth)
+        flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
 
         #-Determine channel discharge (m3/s) for first iteration step
+        # print(flowVelocity)
+        # pcr.report(flowVelocity, self.outpath + "flowVelocity.map")
+        # exit()
         Q = pcr.accutraveltimefractionflux(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) / self.dT
         # pcr.report(Q, self.outpath + "Q_" + str(self.counter).zfill(3) + ".map")
 
@@ -148,23 +151,20 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
         self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
 
         #-Determine flow velocity (m/s), water depth (m) and resulting discharge (m3/s) through iteration
-        Q, u = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
+        Q, u, self.hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
+
+        # store flow velocity
+        self.flowVelocity = u
 
         # Only calculate inflow for lake/reservoir cells
         Qin = pcr.ifthenelse(self.QFRAC==0, pcr.upstream(self.FlowDir, Q * self.dT), 0)
         self.StorRES = self.StorRES - Qout + Qin
 
-        # pcr.report(Q, self.outpath + "Q_" + str(self.counter).zfill(3) + ".map")
-        # pcr.report(u, self.outpath + "u_" + str(self.counter).zfill(3) + ".map")
-        # pcr.report(self.waterDepth, self.outpath + "h_" + str(self.counter).zfill(3) + ".map")
-
         #-Determine flow velocity in m/day
         flowVelocity = u * self.dT
 
         #-Update channelStorage after routing (m3)
-        # self.channelStorage = pcr.accutraveltimestate(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity)) 
         self.channelStorage = pcr.accutraveltimefractionstate(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) 
-        # pcr.report(self.channelStorage, self.outpath + "channelStorage_" + str(self.counter).zfill(3) + ".map")
 
     #-In case open water evaporation is used, correct reeservoir storage for evaporation and precipitation input
     if self.ETOpenWaterFLAG == 1:
@@ -177,6 +177,7 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
 
     #-Report discharge
     self.reporting.reporting(self, pcr, 'QallRAtot', Q)
+
     #-report flux in mm
     if self.mm_rep_FLAG == 1 and self.QTOT_mm_FLAG == 1:
         self.QTOTSubBasinTSS.sample(((Q * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)

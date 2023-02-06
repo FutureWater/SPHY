@@ -149,8 +149,9 @@ def flow_velocity_iteration(self, pcr, qOld):
             self.roughness.dynamic(self, pcr)
             # self.manningHillslope = self.manningHillslopeTest #-rill roughness equal to channel roughness
             self.manningChannel = pcr.ifthenelse(self.channelHillslope == 2, self.manningHillslopeTest, self.manningChannel)
-            if self.conservationFLAG == 1:
-                self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
+            if self.SedTransFLAG:
+                if self.conservationFLAG == 1:
+                    self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
             self.manningFP = pcr.ifthenelse(self.channelHillslope == 2, self.manningHillslope, self.manningFP)
 
         #-Determine flow velocity (m/day)
@@ -213,10 +214,7 @@ def init(self, pcr, pcrm, config, np):
     # pcr.setglobaloption("unittrue")
     # self.DEMChannelSmooth = pcr.ifthenelse(self.channelHillslope == 1, self.DEMChannelSmooth, self.DEM)
     # self.slopeChannel = pcrm.slopeToDownstreamNeighbourNotFlat(self.DEMChannelSmooth - self.channelDepth, self.FlowDir, 0.0001)
-
-    #-determine average slope per stream based on stream order and averaged per subcatchment
-    # self.Basin = pcr.subcatchment(self.FlowDir, self.ResSedID)
-    
+   
     #-determine stream order of all channels
     self.streamOrder = pcr.ifthen(self.channelHillslope == 1, pcr.streamorder(self.FlowDir))
     # pcr.report(pcr.streamorder(self.FlowDir), self.outpath + "streamOrder.map")
@@ -412,7 +410,10 @@ def dynamic(self, pcr, TotR):
     #-Determine flow velocity (m/s), water depth (m) and resulting discharge (m3/s) through iteration
     Q, u, hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
     self.reporting.reporting(self, pcr, 'FlowV', u)
+    self.reporting.reporting(self, pcr, 'HydraulicRadius', hydraulicRadius)
+    self.reporting.reporting(self, pcr, 'WaterDepth', self.waterDepth)
 
+    # pcr.report(TotR, self.outpath + "TotR_" + str(self.counter).zfill(3) + ".map")
     # pcr.report(Q, self.outpath + "Q_" + str(self.counter).zfill(3) + ".map")
     # pcr.report(u, self.outpath + "flowVelocity_" + str(self.counter).zfill(3) + ".map")
     # pcr.report(self.waterDepth, self.outpath + "h_" + str(self.counter).zfill(3) + ".map")

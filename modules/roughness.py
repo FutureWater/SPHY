@@ -53,7 +53,8 @@ def init(self, pcr, config):
     #-Determine manning for soil and tilled conditions
     self.n_bare = config.getfloat('EROSION', 'manningBare')
     self.RFR = config.getfloat('EROSION', 'RFR')
-    self.n_tilled = self.roughness.manningTillage(self, pcr)
+    # self.n_tilled = self.roughness.manningTillage(self, pcr)
+    self.n_tilled = pcr.scalar(config.getfloat('EROSION', 'manningTillage'))
     self.n_soil = pcr.ifthenelse(self.Tillage == 1, self.n_tilled, self.n_bare)
 
     # #-Determine roughness

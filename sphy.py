@@ -86,6 +86,9 @@ class sphy(pcrm.DynamicModel):
 		self.inpath = config.get('DIRS', 'inputdir')
 		self.outpath = config.get('DIRS', 'outputdir')
 
+		#-copy config file to output directory
+		shutil.copy(sys.argv[1], self.outpath)
+
 		#-set the timing criteria
 		sy = config.getint('TIMING', 'startyear')
 		sm = config.getint('TIMING', 'startmonth')
@@ -344,54 +347,54 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes routing
 			self.routing.init(self, pcr, config)
 
-		#-read kinematic wave flag
-		self.KinematicFLAG = config.getint('ROUTING', 'KinematicFLAG')
+			#-read kinematic wave flag
+			self.KinematicFLAG = config.getint('ROUTING', 'KinematicFLAG')
 
-		#-In case kinematic wave routing is switched on
-		if self.KinematicFLAG == 1:
-			import modules.kinematic 
-			self.kinematic = modules.kinematic
-			del modules.kinematic
-			# import modules.kinematic_pcrglobwb
-			# self.kinematic = modules.kinematic_pcrglobwb
-			# del modules.kinematic_pcrglobwb
-			
-			#-read init processes kinematic wave routing
-			self.kinematic.init(self, pcr, pcrm, config, np)
+			#-In case kinematic wave routing is switched on
+			if self.KinematicFLAG == 1:
+				import modules.kinematic 
+				self.kinematic = modules.kinematic
+				del modules.kinematic
+				# import modules.kinematic_pcrglobwb
+				# self.kinematic = modules.kinematic_pcrglobwb
+				# del modules.kinematic_pcrglobwb
+				
+				#-read init processes kinematic wave routing
+				self.kinematic.init(self, pcr, pcrm, config, np)
 
-		#-read dynamic wave flag
-		self.DynamicFLAG = config.getint('ROUTING', 'DynamicFLAG')
+			#-read dynamic wave flag
+			self.DynamicFLAG = config.getint('ROUTING', 'DynamicFLAG')
 
-		#-In case dynamic wave routing is switched on
-		if self.DynamicFLAG == 1:
-			import modules.dynamic_wave 
-			self.dynamic_wave = modules.dynamic_wave
-			del modules.dynamic_wave
-			
-			#-read init processes dynamic wave routing
-			self.dynamic_wave.init(self, pcr, config, np)
+			#-In case dynamic wave routing is switched on
+			if self.DynamicFLAG == 1:
+				import modules.dynamic_wave 
+				self.dynamic_wave = modules.dynamic_wave
+				del modules.dynamic_wave
+				
+				#-read init processes dynamic wave routing
+				self.dynamic_wave.init(self, pcr, config, np)
 
-		#-read dynamic wave flag
-		self.travelTimeFLAG = config.getint('ROUTING', 'travelTimeFLAG')
+			#-read dynamic wave flag
+			self.travelTimeFLAG = config.getint('ROUTING', 'travelTimeFLAG')
 
-		#-In case dynamic wave routing is switched on
-		if self.travelTimeFLAG == 1:
-			import modules.travel_time_routing 
-			self.travel_time_routing = modules.travel_time_routing
-			del modules.travel_time_routing
-			
-			#-read init processes dynamic wave routing
-			self.travel_time_routing.init(self, pcr, pcrm, config, np)
+			#-In case dynamic wave routing is switched on
+			if self.travelTimeFLAG == 1:
+				import modules.travel_time_routing 
+				self.travel_time_routing = modules.travel_time_routing
+				del modules.travel_time_routing
+				
+				#-read init processes dynamic wave routing
+				self.travel_time_routing.init(self, pcr, pcrm, config, np)
 
-		#-In case re-infiltration is switched on
-		self.ReInfiltrationFLAG = config.getint('ROUTING', 'ReInfiltrationFLAG')
-		if self.ReInfiltrationFLAG == 1:
-			import modules.reinfiltration 
-			self.reinfiltration = modules.reinfiltration
-			del modules.reinfiltration
-			
-			# #-read init processes dynamic wave routing
-			# self.reinfiltration.init(self, pcr, pcrm, config, np)
+			#-In case re-infiltration is switched on
+			self.ReInfiltrationFLAG = config.getint('ROUTING', 'ReInfiltrationFLAG')
+			if self.ReInfiltrationFLAG == 1:
+				import modules.reinfiltration 
+				self.reinfiltration = modules.reinfiltration
+				del modules.reinfiltration
+				
+				# #-read init processes dynamic wave routing
+				# self.reinfiltration.init(self, pcr, pcrm, config, np)
 
 		#-read and set routing maps and parameters
 		if self.ResFLAG == 1 or self.LakeFLAG == 1:
@@ -486,7 +489,7 @@ class sphy(pcrm.DynamicModel):
 					del modules.morphodynamics
 
 					#-read init processes sediment transport
-					self.morphodynamics.init(self, pcr, pcrm, config)
+					self.morphodynamics.init(self, pcr, pcrm, config, csv, np)
 
 
 		#-set the global option for radians
@@ -659,10 +662,6 @@ class sphy(pcrm.DynamicModel):
 		self.reporting.reporting(self, pcr, 'TotPrec', Precip)
 		self.reporting.reporting(self, pcr, 'TotPrecF', Precip * (1-self.GlacFrac))
 
-		#-Add irrigation water to precipitation
-		if self.IrrigationFLAG ==1:
-			Precip = Precip + self.IrrigationWater
-
 		#-Temperature and determine reference evapotranspiration
 		if self.tempNetcdfFLAG == 1:
 			#-read forcing by netcdf input
@@ -704,6 +703,11 @@ class sphy(pcrm.DynamicModel):
 				self.KcOld = self.Kc
 			except:
 				self.Kc = self.KcOld
+
+		#-Add irrigation water to precipitation
+		if self.IrrigationFLAG ==1:
+			Precip = Precip + self.IrrigationWater
+
 		#-report mm effective precipitation for sub-basin averages
 		if self.mm_rep_FLAG == 1 and self.Prec_mm_FLAG == 1 and (self.RoutFLAG == 1 or self.ResFLAG == 1 or self.LakeFLAG == 1):
 			self.PrecSubBasinTSS.sample(pcr.catchmenttotal(Precip * (1-self.GlacFrac), self.FlowDir) / pcr.catchmenttotal(1, self.FlowDir))
@@ -877,6 +881,9 @@ class sphy(pcrm.DynamicModel):
 			# if self.travelTimeFLAG == 1:
 			# else:
 			#-read dynamic processes advanced routing
+			# if self.travelTimeFLAG == 1:
+			# 	Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)
+			# else:
 			Q = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
 
 		#-Normal routing module

@@ -178,18 +178,12 @@ def netcdf2pcrDynamic(self, pcr, forcing): #ncFile, varName, dateInput, method, 
     #-get raw netcdf gridded data from netcdf, transform to array and multiply with factor
     if getattr(self, forcing + 'InProj') == "rotated":
         z = f.variables[getattr(self, forcing + 'VarName')][idx, ..., getattr(self, forcing + 'xyUL'):(getattr(self, forcing + 'xyLL') + 1), getattr(self, forcing + 'xyUR'):(getattr(self, forcing + 'xyLR') + 1)]
-        # print(z.shape)
-        # exit()
     else:
         z = f.variables[getattr(self, forcing + 'VarName')][idx, ..., getattr(self, forcing + 'yIdxSta'):(getattr(self, forcing + 'yIdxEnd') + 1), getattr(self, forcing + 'xIdxSta'):(getattr(self, forcing + 'xIdxEnd') + 1)]
     z = np.asarray(z).ravel()
     with np.errstate(invalid='ignore'): # surpress error message when there are already nans in the z array
         z = np.where(z<=-9999, np.nan, z) * getattr(self, forcing + 'Factor')
 
-    # print(getattr(self, forcing + 'y'))
-    # print(z)
-    # exit()
-    
     #-remove nans from arrays
     x = getattr(self, forcing + 'x')[~np.isnan(z)]
     y = getattr(self, forcing + 'y')[~np.isnan(z)]

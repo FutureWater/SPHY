@@ -194,7 +194,7 @@ def init(self, pcr, config):
     # self.n_bare = config.getfloat('MMF', 'manning')
     self.d_bare = config.getfloat('MMF', 'depthBare')
     self.d_field = config.getfloat('MMF', 'depthInField')
-    self.d_TC = config.getfloat('MMF', 'depthTC')
+    # self.d_TC = config.getfloat('MMF', 'depthTC')
     # self.RFR = config.getfloat('MMF', 'RFR')
     # self.rho_s = config.getfloat('MMF', 'rho_s')
     # self.rho = config.getfloat('MMF', 'rho')
@@ -315,58 +315,96 @@ def dynamic(self, pcr, Precip, Runoff):
     self.reporting.reporting(self, pcr, 'DetRun', H * pcr.cellarea() / 1000)
     # pcr.report(H * pcr.cellarea() / 1000, self.outpath + "DetRun_" + str(self.counter).zfill(3) + ".map")
 
-    #-Apply immediate deposition when sediment transport is not used
-    if self.SedTransFLAG == 0 or self.SedTransEquation == 6:
-        #-Update flow velocity to determine particle fall number
-        if self.travelTimeFLAG == 1:
-            self.v_update = self.mmf.FlowVelocity(self, pcr, self.manningHillslope, pcr.max(self.waterDepth - self.channelDepth, 0))
+    #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
+    if self.harvest_FLAG:
+        self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
+    else:
+        self.v_update = self.v_field
 
-            #-determine particle fall number
-            N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
-            N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
-            N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
-        else:
-            #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
-            if self.harvest_FLAG:
-                self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
-            else:
-                self.v_update = self.v_field
+    #-determine particle fall number
+    N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.v_update, self.d_field)
+    N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.v_update, self.d_field)
+    N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.v_update, self.d_field)
 
-            #-determine particle fall number
-            N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.v_update, self.d_field)
-            N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.v_update, self.d_field)
-            N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.v_update, self.d_field)
+    #-determine percentage of the detached sediment that is deposited within the cell of origin
+    DEP_c = self.mmf.Deposition(self, pcr, N_f_c)
+    DEP_z = self.mmf.Deposition(self, pcr, N_f_z)
+    DEP_s = self.mmf.Deposition(self, pcr, N_f_s)
 
-        #-determine percentage of the detached sediment that is deposited within the cell of origin
-        DEP_c = self.mmf.Deposition(self, pcr, N_f_c)
-        DEP_z = self.mmf.Deposition(self, pcr, N_f_z)
-        DEP_s = self.mmf.Deposition(self, pcr, N_f_s)
+    #-determine delivery of detached particles to runoff and sediment that is deposited within the cell of origin
+    tempvar = self.mmf.MaterialTransport(self, pcr, F_c, H_c, DEP_c)
+    G_c = tempvar[0]
+    D_c = tempvar[1]
+    tempvar = self.mmf.MaterialTransport(self, pcr, F_z, H_z, DEP_z)
+    G_z = tempvar[0]
+    D_z = tempvar[1]
+    tempvar = self.mmf.MaterialTransport(self, pcr, F_s, H_s, DEP_s)
+    G_s = tempvar[0]
+    D_s = tempvar[1]
+    G = G_c + G_z + G_s
+    D = D_c + D_z + D_s
 
-        #-determine delivery of detached particles to runoff and sediment that is deposited within the cell of origin
-        tempvar = self.mmf.MaterialTransport(self, pcr, F_c, H_c, DEP_c)
-        G_c = tempvar[0]
-        D_c = tempvar[1]
-        tempvar = self.mmf.MaterialTransport(self, pcr, F_z, H_z, DEP_z)
-        G_z = tempvar[0]
-        D_z = tempvar[1]
-        tempvar = self.mmf.MaterialTransport(self, pcr, F_s, H_s, DEP_s)
-        G_s = tempvar[0]
-        D_s = tempvar[1]
-        G = G_c + G_z + G_s
-        D = D_c + D_z + D_s
+    #-report in field deposition of detached particles (ton / cell)
+    self.reporting.reporting(self, pcr, 'SDepFld', D * pcr.cellarea() / 1000)
 
-        #-report in field deposition of detached particles (ton / cell)
-        self.reporting.reporting(self, pcr, 'SDepFld', D * pcr.cellarea() / 1000)
+    # #-Apply immediate deposition when sediment transport is not used
+    # if self.SedTransFLAG == 0 or self.SedTransEquation == 6:
+    #     #-Update flow velocity to determine particle fall number
+    #     if self.travelTimeFLAG == 1:
+    #         self.v_update = self.mmf.FlowVelocity(self, pcr, self.manningHillslope, pcr.max(self.waterDepth - self.channelDepth, 0))
+
+    #         #-determine particle fall number
+    #         N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
+    #         N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
+    #         N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
+    #     else:
+    #         #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
+    #         if self.harvest_FLAG:
+    #             self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
+    #         else:
+    #             self.v_update = self.v_field
+
+    #         #-determine particle fall number
+    #         N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.v_update, self.d_field)
+    #         N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.v_update, self.d_field)
+    #         N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.v_update, self.d_field)
+
+    #     #-determine percentage of the detached sediment that is deposited within the cell of origin
+    #     DEP_c = self.mmf.Deposition(self, pcr, N_f_c)
+    #     DEP_z = self.mmf.Deposition(self, pcr, N_f_z)
+    #     DEP_s = self.mmf.Deposition(self, pcr, N_f_s)
+
+    #     #-determine delivery of detached particles to runoff and sediment that is deposited within the cell of origin
+    #     tempvar = self.mmf.MaterialTransport(self, pcr, F_c, H_c, DEP_c)
+    #     G_c = tempvar[0]
+    #     D_c = tempvar[1]
+    #     tempvar = self.mmf.MaterialTransport(self, pcr, F_z, H_z, DEP_z)
+    #     G_z = tempvar[0]
+    #     D_z = tempvar[1]
+    #     tempvar = self.mmf.MaterialTransport(self, pcr, F_s, H_s, DEP_s)
+    #     G_s = tempvar[0]
+    #     D_s = tempvar[1]
+    #     G = G_c + G_z + G_s
+    #     D = D_c + D_z + D_s
+
+    #     #-report in field deposition of detached particles (ton / cell)
+    #     self.reporting.reporting(self, pcr, 'SDepFld', D * pcr.cellarea() / 1000)
+    # else:
+    #     #-Hillslope erosion equals detachment by raindrop impact and runoff
+    #     G = F + H
 
     #-In case sediment transport module is used
     if self.SedTransFLAG == 1 and self.SedTransEquation != 6:
-        #-Hillslope erosion equals detachment by raindrop impact and runoff
-        G = F + H
+        # #-Hillslope erosion equals detachment by raindrop impact and runoff
+        # G = F + H
 
         #-Assign hillslope erosion (sum of detachment by raindrop impact and runoff) per sediment class to new attribute
-        setattr(self, "SedClay", (F_c + H_c) * pcr.cellarea() / 1000)
-        setattr(self, "SedSilt", (F_z + H_z) * pcr.cellarea() / 1000)
-        setattr(self, "SedSand", (F_s + H_s) * pcr.cellarea() / 1000)
+        # setattr(self, "SedClay", (F_c + H_c) * pcr.cellarea() / 1000)
+        # setattr(self, "SedSilt", (F_z + H_z) * pcr.cellarea() / 1000)
+        # setattr(self, "SedSand", (F_s + H_s) * pcr.cellarea() / 1000)
+        setattr(self, "SedClay", (G_c) * pcr.cellarea() / 1000)
+        setattr(self, "SedSilt", (G_z) * pcr.cellarea() / 1000)
+        setattr(self, "SedSand", (G_s) * pcr.cellarea() / 1000)
 
     #-report sediment in transport (ton / cell)
     self.reporting.reporting(self, pcr, 'SedTrans', G * pcr.cellarea() / 1000)

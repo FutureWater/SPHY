@@ -62,8 +62,8 @@ def init(self, pcr, config):
     pcr.setglobaloption('matrixtable')
     # nominal map with reservoir IDs
     self.ResID = pcr.cover(pcr.readmap(self.inpath + config.get('RESERVOIR','ResId')), 0)
-    # boolean map with stations that are not reservoirs
-    self.LocationsNoRes = pcr.ifthenelse(pcr.pcrand(pcr.scalar(self.Locations) > 0, pcr.scalar(self.ResID) == 0), pcr.boolean(1), pcr.boolean(0))
+    # # boolean map with stations that are not reservoirs
+    # self.LocationsNoRes = pcr.ifthenelse(pcr.pcrand(pcr.scalar(self.Locations) > 0, pcr.scalar(self.ResID) == 0), pcr.boolean(1), pcr.boolean(0))
 
     # lookup table with operational scheme to use (simple or advanced)
     ResFunc_Tab = self.inpath + config.get('RESERVOIR', 'ResFuncStor')

@@ -32,83 +32,82 @@ def TC(self, pcr, runoff):
     #-set all other cells to 0
     TCSubcatchment = pcr.cover(TCSubcatchment, 0)
     return TC
-    # return TCSubcatchment
 
-#-Sediment transport
-def SedTrans(self, pcr, np, sed, TC):
-    #-determine sediment transport without reservoirs
-    if self.ResFLAG == 0:
-        #-rout sediment based on transport capacity
-        sedimentFlux = pcr.accucapacityflux(self.FlowDir, sed, TC)
-        sedimentYield = pcr.accucapacitystate(self.FlowDir, sed, TC)
-        sedDep = sedimentYield
+# #-Sediment transport
+# def SedTrans(self, pcr, np, sed, TC):
+#     #-determine sediment transport without reservoirs
+#     if self.ResFLAG == 0:
+#         #-rout sediment based on transport capacity
+#         sedimentFlux = pcr.accucapacityflux(self.FlowDir, sed, TC)
+#         sedimentYield = pcr.accucapacitystate(self.FlowDir, sed, TC)
+#         sedDep = sedimentYield
 
-    #-determine sediment transport with reservoirs
-    else:
-        #-store sed in sedTrans to be used in routing algorithm
-        sedTrans = sed
+#     #-determine sediment transport with reservoirs
+#     else:
+#         #-store sed in sedTrans to be used in routing algorithm
+#         sedTrans = sed
 
-        #-initiate empty map to be used in for-loop
-        sedimentYield = self.DEM * 0
-        sedimentFlux = self.DEM * 0
-        subFinished = self.DEM * 0
-        sedDep = self.DEM * 0
+#         #-initiate empty map to be used in for-loop
+#         sedimentYield = self.DEM * 0
+#         sedimentFlux = self.DEM * 0
+#         subFinished = self.DEM * 0
+#         sedDep = self.DEM * 0
 
-        #-increase the transport capacity in the reservoir cells such that all sediment is transported towards the end of the reservoir
-        TC = pcr.ifthenelse(pcr.scalar(self.SedReservoirs) > 0, 1e10, TC)
+#         #-increase the transport capacity in the reservoir cells such that all sediment is transported towards the end of the reservoir
+#         TC = pcr.ifthenelse(pcr.scalar(self.SedReservoirs) > 0, 1e10, TC)
 
-        #-Determine total soil erosion
-        sedTotal = np.sum(pcr.pcr2numpy(sed, 0))
+#         #-Determine total soil erosion
+#         sedTotal = np.sum(pcr.pcr2numpy(sed, 0))
 
-        #-Only rout sediment when soil erosion > 0
-        if (sedTotal > 0):
-            #-loop through the catchments, rout sediment and determine sedimentation in reservoirs based on trapping efficiency
-            for step in range(max(self.subcatchmentSteps)+1): #-for-loop through the steps
-                #-determine the subcatchments for this step
-                subcatchments = np.where(self.subcatchmentSteps == step)[0]
+#         #-Only rout sediment when soil erosion > 0
+#         if (sedTotal > 0):
+#             #-loop through the catchments, rout sediment and determine sedimentation in reservoirs based on trapping efficiency
+#             for step in range(max(self.subcatchmentSteps)+1): #-for-loop through the steps
+#                 #-determine the subcatchments for this step
+#                 subcatchments = np.where(self.subcatchmentSteps == step)[0]
 
-                #-rout sediment based on transport capacity
-                sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
-                sedTransCapState = pcr.accucapacitystate(self.FlowDir, sedTrans, TC)
+#                 #-rout sediment based on transport capacity
+#                 sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
+#                 sedTransCapState = pcr.accucapacitystate(self.FlowDir, sedTrans, TC)
 
-                #-initiate empty map to be used in for-loop
-                stepBool = self.DEM * 0
+#                 #-initiate empty map to be used in for-loop
+#                 stepBool = self.DEM * 0
 
-                #-for-loop through the subcatchments per step
-                for subcatchment in subcatchments:
-                    #-create boolean map with location of reservoir
-                    reservoirBool = pcr.scalar(pcr.ifthenelse(self.ResSedID == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(1), pcr.scalar(0)))
+#                 #-for-loop through the subcatchments per step
+#                 for subcatchment in subcatchments:
+#                     #-create boolean map with location of reservoir
+#                     reservoirBool = pcr.scalar(pcr.ifthenelse(self.ResSedID == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(1), pcr.scalar(0)))
 
-                    #-extract routed sediment value at the reservoir from sedTransCapFlux
-                    reservoirFluxTC = pcr.ifthen(reservoirBool == 1, sedTransCapFlux)
+#                     #-extract routed sediment value at the reservoir from sedTransCapFlux
+#                     reservoirFluxTC = pcr.ifthen(reservoirBool == 1, sedTransCapFlux)
 
-                    #-store trapped sediment in sedimentYield (multiply routed sediment value with trapping efficiency to be stored in reservoir cell)
-                    sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.TrappingEff, sedimentYield)
+#                     #-store trapped sediment in sedimentYield (multiply routed sediment value with trapping efficiency to be stored in reservoir cell)
+#                     sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.TrappingEff, sedimentYield)
 
-                    #-update subFinished and give subcatchment cells value 1
-                    subFinished = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(1), subFinished)
+#                     #-update subFinished and give subcatchment cells value 1
+#                     subFinished = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(1), subFinished)
 
-                    #-update sedTrans, set all subcatchment cells to 0
-                    sedTrans = pcr.ifthenelse(pcr.scalar(subFinished) == 1, 0, sedTrans)
-                    #-add reservoir outflow to cell downstream of reservoir (multiply routed sediment value with outflow efficiency)
-                    sedTrans = sedTrans + pcr.upstream(self.FlowDir, pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.OutflowEff, pcr.scalar(0)))
+#                     #-update sedTrans, set all subcatchment cells to 0
+#                     sedTrans = pcr.ifthenelse(pcr.scalar(subFinished) == 1, 0, sedTrans)
+#                     #-add reservoir outflow to cell downstream of reservoir (multiply routed sediment value with outflow efficiency)
+#                     sedTrans = sedTrans + pcr.upstream(self.FlowDir, pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.OutflowEff, pcr.scalar(0)))
 
-                    #-create boolean map with location of reservoir
-                    stepBool = stepBool + pcr.scalar(pcr.ifthenelse(self.subcatchmentRes == int(self.subcatchmentOrder[subcatchment]), self.subcatchmentRes == int(self.subcatchmentOrder[subcatchment]), pcr.boolean(0)))
+#                     #-create boolean map with location of reservoir
+#                     stepBool = stepBool + pcr.scalar(pcr.ifthenelse(self.subcatchmentRes == int(self.subcatchmentOrder[subcatchment]), self.subcatchmentRes == int(self.subcatchmentOrder[subcatchment]), pcr.boolean(0)))
 
-                # store sedTransCapFlux in sedimentFlux
-                sedimentFlux = sedTransCapFlux * subFinished + sedimentFlux
+#                 # store sedTransCapFlux in sedimentFlux
+#                 sedimentFlux = sedTransCapFlux * subFinished + sedimentFlux
 
-                #-rout sediment based on transport capacity
-                sedDep = sedDep + sedTransCapState * stepBool
+#                 #-rout sediment based on transport capacity
+#                 sedDep = sedDep + sedTransCapState * stepBool
 
-            #-rout sediment based on transport capacity
-            sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
+#             #-rout sediment based on transport capacity
+#             sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
 
-            # store sedTransCapFlux in sedimentFlux
-            sedimentFlux = sedTransCapFlux * (1 - subFinished) + sedimentFlux
+#             # store sedTransCapFlux in sedimentFlux
+#             sedimentFlux = sedTransCapFlux * (1 - subFinished) + sedimentFlux
     
-    return sedimentYield, sedDep, sedimentFlux
+#     return sedimentYield, sedDep, sedimentFlux
 
 
 #-init processes
@@ -171,54 +170,54 @@ def init(self, pcr, config, csv, np):
         self.D50 = config.getfloat('SEDIMENT_TRANS', 'D50') * 1e-6
     # pcr.report(self.D50, self.outpath + "D50.map")
     
-    #-init processes when reservoir module is used
-    if self.ResFLAG == 1:
-        #-nominal map with reservoir IDs and extent
-        if self.ETOpenWaterFLAG == 1:
-            self.SedReservoirs = pcr.cover(self.openWaterNominal, 0)
-        else:
-            self.SedReservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
-        self.SedReservoirs = pcr.cover(self.SedReservoirs, 0)
+    # #-init processes when reservoir module is used
+    # if self.ResFLAG == 1:
+    #     #-nominal map with reservoir IDs and extent
+    #     if self.ETOpenWaterFLAG == 1:
+    #         self.SedReservoirs = pcr.cover(self.openWaterNominal, 0)
+    #     else:
+    #         self.SedReservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
+    #     self.SedReservoirs = pcr.cover(self.SedReservoirs, 0)
 
-        #-read table with the trapping efficiency per reservoir
-        self.TrapEffTab = self.inpath + config.get('SEDIMENT_TRANS', 'TrapEffTab')
-        self.TrappingEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.ResSedID), 0)
+    #     #-read table with the trapping efficiency per reservoir
+    #     self.TrapEffTab = self.inpath + config.get('SEDIMENT_TRANS', 'TrapEffTab')
+    #     self.TrappingEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.ResSedID), 0)
 
-        #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
-        self.OutflowEff = pcr.cover(1-pcr.lookupscalar(self.TrapEffTab, self.ResSedID), 1)
+    #     #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
+    #     self.OutflowEff = pcr.cover(1-pcr.lookupscalar(self.TrapEffTab, self.ResSedID), 1)
 
-        #-determine subcatchment map
-        self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.ResSedID)
+    #     #-determine subcatchment map
+    #     self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.ResSedID)
 
-        #-read reservoir order for sediment transport and add the values to self.subcatchmentOrder and self.subcatchmentSteps
-        self.ResOrder = config.get('SEDIMENT_TRANS', 'ResOrder')
-        self.subcatchmentOrder = []
-        self.subcatchmentSteps = []
+    #     #-read reservoir order for sediment transport and add the values to self.subcatchmentOrder and self.subcatchmentSteps
+    #     self.ResOrder = config.get('SEDIMENT_TRANS', 'ResOrder')
+    #     self.subcatchmentOrder = []
+    #     self.subcatchmentSteps = []
 
-        #-loop through the rows of the text file
-        with open(self.inpath + self.ResOrder, 'rt') as f:
-            next(f) # skip headings
-            reader = csv.reader(f, delimiter='\t')
-            for row in reader:
-                self.subcatchmentOrder = np.append(self.subcatchmentOrder, int(row[0]))
-                self.subcatchmentOrder = self.subcatchmentOrder.astype(np.int)
-                self.subcatchmentSteps = np.append(self.subcatchmentSteps, int(row[1]))
-                self.subcatchmentSteps = self.subcatchmentSteps.astype(np.int)
+    #     #-loop through the rows of the text file
+    #     with open(self.inpath + self.ResOrder, 'rt') as f:
+    #         next(f) # skip headings
+    #         reader = csv.reader(f, delimiter='\t')
+    #         for row in reader:
+    #             self.subcatchmentOrder = np.append(self.subcatchmentOrder, int(row[0]))
+    #             self.subcatchmentOrder = self.subcatchmentOrder.astype(np.int)
+    #             self.subcatchmentSteps = np.append(self.subcatchmentSteps, int(row[1]))
+    #             self.subcatchmentSteps = self.subcatchmentSteps.astype(np.int)
         
-        #-loop through the steps and define map with step per subcatchment
-        self.subcatchmentStepsMap = self.DEM * 0
-        for step in range(max(self.subcatchmentSteps)+1):
-            #-determine the subcatchments for this step
-            subcatchments = np.where(self.subcatchmentSteps == step)[0]
+    #     #-loop through the steps and define map with step per subcatchment
+    #     self.subcatchmentStepsMap = self.DEM * 0
+    #     for step in range(max(self.subcatchmentSteps)+1):
+    #         #-determine the subcatchments for this step
+    #         subcatchments = np.where(self.subcatchmentSteps == step)[0]
 
-            #-for-loop through the subcatchments per step
-            for subcatchment in subcatchments:
-                #-update subFinished and give subcatchment cells value 1
-                self.subcatchmentStepsMap = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(step + 1), self.subcatchmentStepsMap)
-        #-set all subcatchments with value 0 to the maximum step 
-        self.subcatchmentStepsMap = pcr.ifthenelse(self.subcatchmentStepsMap == 0, int(max(self.subcatchmentSteps)+1), self.subcatchmentStepsMap)
-        #-map with step value for stations that are not reservoirs
-        self.LocationsNoResSteps = pcr.scalar(self.LocationsNoRes) * self.subcatchmentStepsMap
+    #         #-for-loop through the subcatchments per step
+    #         for subcatchment in subcatchments:
+    #             #-update subFinished and give subcatchment cells value 1
+    #             self.subcatchmentStepsMap = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(self.subcatchmentOrder[subcatchment]), pcr.scalar(step + 1), self.subcatchmentStepsMap)
+    #     #-set all subcatchments with value 0 to the maximum step 
+    #     self.subcatchmentStepsMap = pcr.ifthenelse(self.subcatchmentStepsMap == 0, int(max(self.subcatchmentSteps)+1), self.subcatchmentStepsMap)
+    #     #-map with step value for stations that are not reservoirs
+    #     self.LocationsNoResSteps = pcr.scalar(self.LocationsNoRes) * self.subcatchmentStepsMap
 
     #-determine roughness factor for mmf only
     if self.SedTransEquation == 6:
@@ -441,16 +440,8 @@ def dynamic(self, pcr, np, Q, Sed):
     else:
         #-determine shear stress (N/m2)
         if self.travelTimeFLAG == 0:
-        #     tau = self.sediment_transport.ShearStress(self.rho, self.g, self.waterDepth, self.Slope)
-        # else:
             #-determine water depth (m) and flow depth (m)
             h, l = self.shetran.Manning(self, pcr, Q, self.n_table_SHETRAN, self.WD_ratio_SHETRAN, self.Slope)
-
-        #     #-determine shear stress (N/m2)
-        #     tau = self.shetran.ShearStress(self, pcr, self.rho, self.g, h, self.Slope)
-
-        # pcr.report(self.waterDepth, self.outpath + "waterDepth_" + str(self.counter).zfill(3) + ".map")
-        # pcr.report(tau, self.outpath + "tau_" + str(self.counter).zfill(3) + ".map")
 
         #-For loop over the sediment classes
         for sedimentClass in self.sedimentClasses:
@@ -462,7 +453,6 @@ def dynamic(self, pcr, np, Q, Sed):
                 TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquation)
             else:
                 TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, h, l, Q, D50, self.Slope, self.SedTransEquation)
-            # pcr.report(TC, self.outpath + "TC_channel_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
 
             #-Determine transport capacity in the rills when rills are simulated
             if self.RillFLAG == 1:
@@ -474,53 +464,28 @@ def dynamic(self, pcr, np, Q, Sed):
 
                 #-Update transport capacity for the hillslopes
                 TC = pcr.ifthenelse(self.channelHillslope == 2, TC_Rills, TC)
-                # pcr.report(TC_Rills, self.outpath + "TC_hillslope_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
 
             #-apply maximum allowable sediment concentration (g/l = kg/m3)
             TC = pcr.min(TC, self.SedConcMax)
-            # pcr.report(TC, self.outpath + "TC_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+            # pcr.report(TC, self.outpath + "TC.map")
+            # pcr.report(Q, self.outpath + "Q.map")
 
             #-determine transport capacity (ton/day)
-            # pcr.report(TC, self.outpath + "sedConc_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
             TC = TC * Q * 1e-3 * (24 * 60 * 60)
-            # pcr.report(TC, self.outpath + "TC_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+            # TC = TC / (self.g * (1 - self.rho / self.rho_s)) * 1e-3 # * (24 * 60 * 60)
 
             #-store transport capacity for sediment class
             setattr(self, "TC" + sedimentClass, TC)
 
-        #     #-When MMF is used, obtain hillslope erosion per sediment class from attribute
-        #     if sedimentClass == 'Gravel':
-        #         Sed = self.ones * 0
-        #     else:
-        #         if self.ErosionModel == 2:
-        #             Sed = getattr(self, "Sed" + sedimentClass)
-        #         else:
-        #             #-Multiply hillslope erosion by sediment class fraction
-        #             Sed = Sed * getattr(self, "Root" + sedimentClass + "Map")
-        #     pcr.report(Sed, self.outpath + "Sed_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+            #-report TC per sediment class
+            self.reporting.reporting(self, pcr, 'TC' + sedimentClass, pcr.scalar(getattr(self, "TC" + sedimentClass)))
 
-        #     #-determine sediment yield at stations
-        #     sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, Sed, TC)
-        #     pcr.report(sedFlux, self.outpath + "sedFlux_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
-        #     pcr.report(sedDep, self.outpath + "sedDep_" + sedimentClass + "_" + str(self.counter).zfill(3) + ".map")
+        #-sum TC for all fractions
+        TC = self.TCClay + self.TCSilt + self.TCSand + self.TCGravel
 
-        #     #-Assign sediment yield, deposition and flux values to sediment class
-        #     setattr(self, "sedYield" + sedimentClass, sedYield)
-        #     setattr(self, "sedDep" + sedimentClass, sedDep)
-        #     setattr(self, "sedFlux" + sedimentClass, sedFlux)
+        # #-determine transport capacity (ton/day)
+        # TC = TC * Q * 1e-3 * (24 * 60 * 60)
+        # TC = TC / (self.g * (1 - self.rho / self.rho_s)) * 1e-3 # * (24 * 60 * 60)
 
         #-report the transport capacity (ton/day)
-        TC = self.TCClay + self.TCSilt + self.TCSand + self.TCGravel
         self.reporting.reporting(self, pcr, 'TC', TC)
-        # pcr.report(TC, self.outpath + "TC_" + str(self.counter).zfill(3) + ".map")
-
-        # #-report sediment yield in the stations (ton/day)
-        # sedYield = self.sedYieldClay + self.sedYieldSilt + self.sedYieldSand
-        # self.reporting.reporting(self, pcr, 'SedYld', sedYield)
-
-        # #-report sediment flux in the stations (ton/day)
-        # sedFlux = self.sedFluxClay + self.sedFluxSilt + self.sedFluxSand
-        # self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
-        # # pcr.report(sedFlux, self.outpath + "sedFlux_" + str(self.counter).zfill(3) + ".map")
-
-        # return TC
