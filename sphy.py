@@ -1,6 +1,6 @@
 # The Spatial Processes in HYdrology (SPHY) model:
 # A spatially distributed hydrological model 
-# Copyright (C) 2013-2019  FutureWater
+# Copyright (C) 2013-2023  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
@@ -347,33 +347,6 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes routing
 			self.routing.init(self, pcr, config)
 
-			#-read kinematic wave flag
-			self.KinematicFLAG = config.getint('ROUTING', 'KinematicFLAG')
-
-			#-In case kinematic wave routing is switched on
-			if self.KinematicFLAG == 1:
-				import modules.kinematic 
-				self.kinematic = modules.kinematic
-				del modules.kinematic
-				# import modules.kinematic_pcrglobwb
-				# self.kinematic = modules.kinematic_pcrglobwb
-				# del modules.kinematic_pcrglobwb
-				
-				#-read init processes kinematic wave routing
-				self.kinematic.init(self, pcr, pcrm, config, np)
-
-			#-read dynamic wave flag
-			self.DynamicFLAG = config.getint('ROUTING', 'DynamicFLAG')
-
-			#-In case dynamic wave routing is switched on
-			if self.DynamicFLAG == 1:
-				import modules.dynamic_wave 
-				self.dynamic_wave = modules.dynamic_wave
-				del modules.dynamic_wave
-				
-				#-read init processes dynamic wave routing
-				self.dynamic_wave.init(self, pcr, config, np)
-
 			#-read dynamic wave flag
 			self.travelTimeFLAG = config.getint('ROUTING', 'travelTimeFLAG')
 
@@ -392,9 +365,6 @@ class sphy(pcrm.DynamicModel):
 				import modules.reinfiltration 
 				self.reinfiltration = modules.reinfiltration
 				del modules.reinfiltration
-				
-				# #-read init processes dynamic wave routing
-				# self.reinfiltration.init(self, pcr, pcrm, config, np)
 
 		#-read and set routing maps and parameters
 		if self.ResFLAG == 1 or self.LakeFLAG == 1:
@@ -428,7 +398,7 @@ class sphy(pcrm.DynamicModel):
 
 		#-read flag for calculation of ET in reservoirs
 		self.ETOpenWaterFLAG = config.getint('OPENWATER', 'ETOpenWaterFLAG')
-		if self.ETOpenWaterFLAG == 1:
+		if self.ResFLAG == 1 and self.ETOpenWaterFLAG == 1:
 			#-read kc value for open water
 			self.kcOpenWater = config.getfloat('OPENWATER', 'kcOpenWater')
 			#-read openwater fraction map
@@ -576,16 +546,6 @@ class sphy(pcrm.DynamicModel):
 			#-read init processes routing
 			self.routing.initial(self, pcr, config)
 
-			#-In case kinematic wave routing is switched on
-			if self.KinematicFLAG == 1:
-				#-read init processes kinematic wave routing
-				self.kinematic.initial(self, pcr, config)
-
-			#-In case dynamic wave routing is switched on
-			if self.DynamicFLAG == 1:
-				#-read init processes dynamic wave routing
-				self.dynamic_wave.initial(self, pcr, config)
-
 			#-In case dynamic wave routing is switched on
 			if self.travelTimeFLAG == 1:
 				#-read init processes dynamic wave routing
@@ -604,11 +564,6 @@ class sphy(pcrm.DynamicModel):
 			if self.travelTimeFLAG == 0:
 				#-read init processes advanced routing
 				self.advanced_routing.initial(self, pcr, config)
-
-		# #-Initial routed volume of sediment
-		# if self.ErosionFLAG == 1 and self.SedTransFLAG == 1:
-		# 	#-read init processes sediment transport
-		# 	self.sediment_transport.initial(self, pcr, config)
 
 		#-Initial values for reporting and setting of time-series
 		#-set time-series reporting for mm flux from upstream area for prec and eta
@@ -742,7 +697,7 @@ class sphy(pcrm.DynamicModel):
 
 		#-Potential evapotranspiration
 		ETpot = self.ET.ETpot(ETref, self.Kc)
-		if self.ETOpenWaterFLAG == 1:
+		if self.ResFLAG == 1 and self.ETOpenWaterFLAG == 1:
 			self.ETOpenWater = self.ET.ETpot(ETref, self.kcOpenWater)
 		#-Report ETpot
 		self.reporting.reporting(self, pcr, 'TotETpot', ETpot)
@@ -878,21 +833,16 @@ class sphy(pcrm.DynamicModel):
 
 		#-Routing for lake and/or reservoir modules
 		if self.LakeFLAG == 1 or self.ResFLAG == 1:
-			# if self.travelTimeFLAG == 1:
-			# else:
 			#-read dynamic processes advanced routing
-			# if self.travelTimeFLAG == 1:
-			# 	Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)
-			# else:
-			Q = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
+			if self.travelTimeFLAG == 1:
+				Q, self.flowVelocity, self.hydraulicRadius = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
+			else:
+				Q = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
 
 		#-Normal routing module
 		elif self.RoutFLAG == 1:
-			if self.KinematicFLAG == 1:
-				Q = self.kinematic.dynamic(self, pcr, TotR)
-			elif self.DynamicFLAG == 1:
-				Q = self.dynamic_wave.dynamic(self, pcr, TotR)
-			elif self.travelTimeFLAG == 1:
+			#-read dynamic processes normal routing
+			if self.travelTimeFLAG == 1:
 				Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)
 			else:
 				Q = self.routing.dynamic(self, pcr, TotR)
@@ -960,19 +910,12 @@ class sphy(pcrm.DynamicModel):
 		#-Soil erosion
 		if self.ErosionFLAG == 1:
 			#-determine runoff in mm per day as input for the soil erosion module
-			if self.RoutFLAG == 1 or self.ResFLAG == 1 or self.LakeFLAG == 1:
+			if self.travelTimeFLAG == 1:
 				#-detachment by runoff is modelled as sheet erosion (with local runoff as input) when travel time routing is used
-				# if self.travelTimeFLAG:
-				# 	Q_mm = TotR
-				# 	Q_m3 = TotR * 1e-3 * pcr.cellarea() / (3600 * 24)
-				# else:
-				# 	Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
-				# 	Q_m3 = Q
-				# Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
 				Q_mm = TotR
-				Q_m3 = Q
+				Q_m3 = TotR / (3600 * 24) * pcr.cellarea() / 1000
 			else: 
-				Q_mm = TotR
+				Q_mm = (Q * 3600 * 24) / pcr.cellarea() * 1000
 				Q_m3 = Q
 
 			#-read dynamic processes advanced routing
@@ -981,58 +924,12 @@ class sphy(pcrm.DynamicModel):
 			#-sediment transport
 			if self.SedTransFLAG == 1:
 				#-read dynamic sediment transport processes
-				# self.sediment_transport.dynamic_mmf(self, pcr, Runoff, np, Sed)
 				self.sediment_transport.dynamic(self, pcr, np, Q, Sed)
 
 				#-morphodynamics
 				if self.MorphodynamicsFLAG == 1:
 					#-read dynamic morphodynamics processes
 					self.morphodynamics.dynamic(self, pcr, pcrm, np, Q, Sed)
-
-			# #-MUSLE
-			# if self.SedModel == 1:
-			# 	#-read dynamic processes musle
-			# 	self.musle.dynamic(self, pcr, Runoff)
-
-			# 	#-sediment transport
-			# 	if self.SedTransFLAG == 1:
-			# 		#-read dynamic sediment transport processes musle
-			# 		self.sediment_transport.dynamic_musle(self, pcr)
-
-			# #-Modified Morgan-Morgan-Finney model
-			# if self.SedModel == 2:
-			# 	#-determine soil erosion in transport (G)
-			# 	G = self.mmf.dynamic(self, pcr, Precip, Runoff)
-				
-			# 	#-sediment transport
-			# 	if self.SedTransFLAG == 1:
-			# 		#-read dynamic sediment transport processes mmf
-			# 		self.sediment_transport.dynamic_mmf(self, pcr, Runoff, np, G)
-
-			# #-INCA
-			# if self.SedModel == 3:
-			# 	#-determine soil erosion
-			# 	Sed = self.inca.dynamic(self, pcr, Precip, Q)
-
-			# #-SHETRAN
-			# if self.SedModel == 4:
-			# 	#-determine soil erosion
-			# 	Sed = self.shetran.dynamic(self, pcr, np, Precip, Q)
-
-			# #-DHSVM
-			# if self.SedModel == 5:
-			# 	#-determine soil erosion
-			# 	Sed = self.dhsvm.dynamic(self, pcr, np, Precip, Q)
-
-			# #-HSPF
-			# if self.SedModel == 6:
-			# 	#-determine soil erosion
-			# 	Sed = self.hspf.dynamic(self, pcr, np, Precip, Runoff)
-
-		# #-sediment transport
-		# if self.SedTransFLAG == 1:
-		# 	#-read dynamic sediment transport processes musle
-		# 	self.sediment_transport.dynamic_musle(self, pcr)
 
 		#-update current date
 		self.curdate = self.curdate + self.datetime.timedelta(days=1)
