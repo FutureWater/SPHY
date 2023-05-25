@@ -1,5 +1,5 @@
-# Soil erosion module using the Morgan-Morgan-Finney soil erosion model
-# Copyright (C) 2017-2019 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
+# The Morgan-Morgan-Finney soil erosion model
+# Copyright (C) 2017-2023 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
 # Email: jeekhout@cebas.csic.es
 #
 # This program is free software: you can redistribute it and/or modify
@@ -55,25 +55,10 @@ def DetachmentRaindrop(self, pcr, K, texture, KE):
 def DetachmentRunoff(self, pcr, DR, texture, Q):
     H = DR * texture * Q**1.5 * pcr.max(0, 1 - (self.NoErosion + self.Cover)) * pcr.sin(self.Slope)**(0.3) * 1e-3
 
-    #-set values in channels to 0 in case channels should be excluded
-    # if self.travelTimeFLAG == 1:
-    #     H = pcr.ifthenelse(self.channelHillslope == 2, H, 0)
-    # elif self.exclChannelsFLAG == 1:
-    #     H = H * self.Hillslope
     if self.exclChannelsFLAG == 1:
         H = H * self.Hillslope
 
     return H
-
-# #-Manning for tilled conditions (manningTilled; s/m1/3)
-# def manningTillage(self, pcr):
-#     manningTilled = pcr.exp(-2.1132 + 0.0349 * self.RFR)
-#     return manningTilled
-
-# #-Manning for vegetated conditions (manningVegetated; s/m1/3)
-# def manningVegetation(self, pcr, waterDepth, diameter, noElements):
-#     manningVegetated = (waterDepth**(0.67)) / ((2 * 9.81) / (diameter * noElements))**0.5
-#     return manningVegetated
 
 #-Flow velocity based on manning (v; m/s)
 def FlowVelocity(self, pcr, manning, waterDepth):
@@ -117,23 +102,6 @@ def init(self, pcr, config):
     except:
         self.PrecInt = config.getfloat('MMF', 'PrecInt')
 
-    # #-read flag if the canopy cover should be determined based on LAI
-    # self.CanopyCoverLAIFlag = config.getfloat('MMF', 'CanopyCoverLAIFlag')
-
-    # #-read table with MMF input parameters per landuse class
-    # pcr.setglobaloption('matrixtable')
-    # MMF_table = self.inpath + config.get('MMF', 'MMF_table')
-    # self.PlantHeight = pcr.lookupscalar(MMF_table, 1, self.LandUse)
-    # self.NoElements = pcr.lookupscalar(MMF_table, 2, self.LandUse)
-    # self.Diameter = pcr.lookupscalar(MMF_table, 3, self.LandUse)
-    # self.CC_table = pcr.lookupscalar(MMF_table, 4, self.LandUse)
-    # self.GC_table = pcr.lookupscalar(MMF_table, 5, self.LandUse)
-    # self.NoErosion = pcr.lookupscalar(MMF_table, 6, self.LandUse)
-    # self.Tillage = pcr.lookupscalar(MMF_table, 7, self.LandUse)
-    # self.n_table = pcr.lookupscalar(MMF_table, 8, self.LandUse)
-    # self.NoVegetation = pcr.lookupscalar(MMF_table, 9, self.LandUse)
-    # pcr.setglobaloption('columntable')
-
     #-read table with MMF input parameters per landuse class
     pcr.setglobaloption('matrixtable')
     MMF_table = self.inpath + config.get('MMF', 'MMF_table')
@@ -145,32 +113,7 @@ def init(self, pcr, config):
     #-set ground cover for first time step
     self.GC = self.GC_table
 
-    # #-nominal map with reservoir IDs and extent
-    # if self.ResFLAG == 1:
-    #     if self.ETOpenWaterFLAG == 1:
-    #         self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.openWaterNominal) > 0, pcr.scalar(1), pcr.scalar(0))
-    #         self.Reservoirs = pcr.cover(self.Reservoirs, 0)
-    #     else:
-    #         self.Reservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
-    #     self.NoErosion = pcr.min(self.NoErosion + pcr.scalar(self.Reservoirs), 1)
-
-    # #-read table with MMF input parameters per landuse class for the period after harvest
-    # self.harvest_FLAG = config.getfloat('MMF', 'harvestFLAG')
-    # pcr.setglobaloption('matrixtable')
-    # if self.harvest_FLAG:
-    #     MMF_harvest_table = self.inpath + config.get('MMF', 'MMF_harvest')
-    #     self.Sowing = pcr.lookupscalar(MMF_harvest_table, 1, self.LandUse)
-    #     self.Harvest = pcr.lookupscalar(MMF_harvest_table, 2, self.LandUse)
-    #     self.PlantHeight_harvest = pcr.lookupscalar(MMF_harvest_table, 3, self.LandUse)
-    #     self.NoElements_harvest = pcr.lookupscalar(MMF_harvest_table, 4, self.LandUse)
-    #     self.Diameter_harvest = pcr.lookupscalar(MMF_harvest_table, 5, self.LandUse)
-    #     self.CC_harvest = pcr.lookupscalar(MMF_harvest_table, 6, self.LandUse)
-    #     self.GC_harvest = pcr.lookupscalar(MMF_harvest_table, 7, self.LandUse)
-    #     self.Tillage_harvest = pcr.lookupscalar(MMF_harvest_table, 8, self.LandUse)
-    # pcr.setglobaloption('columntable')
-
     #-read table with MMF input parameters per landuse class for the period after harvest
-    # self.harvest_FLAG = config.getfloat('MMF', 'harvestFLAG')
     pcr.setglobaloption('matrixtable')
     if self.harvest_FLAG:
         MMF_harvest_table = self.inpath + config.get('MMF', 'MMF_harvest')
@@ -188,40 +131,9 @@ def init(self, pcr, config):
     self.DR_c = config.getfloat('MMF', 'DR_c')
     self.DR_z = config.getfloat('MMF', 'DR_z')
     self.DR_s = config.getfloat('MMF', 'DR_s')
-    # self.deltaClay = config.getfloat('MMF', 'deltaClay')
-    # self.deltaSilt = config.getfloat('MMF', 'deltaSilt')
-    # self.deltaSand = config.getfloat('MMF', 'deltaSand')
-    # self.n_bare = config.getfloat('MMF', 'manning')
     self.d_bare = config.getfloat('MMF', 'depthBare')
     self.d_field = config.getfloat('MMF', 'depthInField')
-    # self.d_TC = config.getfloat('MMF', 'depthTC')
-    # self.RFR = config.getfloat('MMF', 'RFR')
-    # self.rho_s = config.getfloat('MMF', 'rho_s')
-    # self.rho = config.getfloat('MMF', 'rho')
     self.eta = config.getfloat('MMF', 'eta')
-
-    # #-Determine manning for soil and tilled conditions
-    # self.n_tilled = self.mmf.manningTillage(self, pcr)
-    # self.n_soil = pcr.ifthenelse(self.Tillage == 1, self.n_tilled, self.n_bare)
-
-    # # #-Determine flow velocity for in field deposition
-    # # self.n_veg_field = self.mmf.manningVegetation(self, pcr, self.d_field, self.Diameter, self.NoElements)
-    # # self.n_veg_field = pcr.ifthenelse(self.NoVegetation == 1, 0, self.n_veg_field)
-    # # self.n_veg_field = pcr.ifthenelse(self.NoErosion == 1, 0, self.n_veg_field)
-    # # self.n_veg_field = pcr.ifthenelse(self.n_table > 0, self.n_table, self.n_veg_field)
-    # # self.n_field = (self.n_soil**2 + self.n_veg_field**2)**0.5
-    # self.n_field, self.n_field_harvest = self.roughness.manningField(self, pcr, self.d_field)
-    # self.v_field = self.mmf.FlowVelocity(self, pcr, self.n_field, self.d_field)
-
-    # #-Determine flow velocity after harvest
-    # if self.harvest_FLAG:
-    #     # self.n_veg_field_harvest = self.mmf.manningVegetation(self, pcr, self.d_field, self.Diameter_harvest, self.NoElements_harvest)
-    #     # self.n_veg_field_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_veg_field_harvest)
-    #     # self.n_field_harvest = (self.n_soil**2 + self.n_veg_field_harvest**2)**0.5
-    #     self.v_field_harvest = self.mmf.FlowVelocity(self, pcr, self.n_field_harvest, self.d_field)
-
-    # pcr.report(self.n_field, self.outpath + "n_field.map")
-    # pcr.report(self.n_field_harvest, self.outpath + "n_field_harvest.map")
 
     #-Determine flow velocity for in field deposition
     self.n_field, self.n_field_harvest = self.roughness.manningField(self, pcr, self.d_field)
@@ -236,36 +148,6 @@ def init(self, pcr, config):
 
 #-dynamic processes
 def dynamic(self, pcr, Precip, Runoff):
-    # #-determine canopy cover from LAI
-    # if self.CanopyCoverLAIFlag == 1 and self.DynVegFLAG == 1:
-    #     self.CC = pcr.min(1, self.LAI)
-    # else:
-    #     self.CC = self.CC_table
-
-    # #-determine areas that have been harvested
-    # if self.harvest_FLAG:
-    #     self.Harvested = self.Slope * 0
-    #     self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
-    #     self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
-    #     self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
-    
-    # #-set canopy cover to value from MMF harvest table for months between harvest and sowing
-    # if self.CanopyCoverLAIFlag == 0 and self.harvest_FLAG:
-    #     self.CC = pcr.ifthenelse(self.Harvested == 1, self.CC_harvest, self.CC_table)
-
-    # #-set ground cover to value from MMF harvest table for months between harvest and sowing
-    # if self.harvest_FLAG:
-    #     self.GC = pcr.ifthenelse(self.Harvested == 1, self.GC_harvest, self.GC_table)
-    # else:
-    #     self.GC = self.GC_table
-    
-    # #-define cover as  fraction of soil covered by ground cover and rock
-    # if self.SnowFLAG == 1:
-    #     SCover = pcr.scalar(self.TotalSnowStore > 0)
-    #     self.Cover = pcr.min(SCover + self.GC + self.RockFrac, 1)
-    # else:
-    #     self.Cover = pcr.min(self.GC + self.RockFrac, 1)
-
     #-determine effective rainfall
     Rf = self.mmf.RainEff(self, pcr, Precip)
 
@@ -282,12 +164,6 @@ def dynamic(self, pcr, Precip, Runoff):
     #-determine kinetic energy of the direct throughfall
     KE_DT = self.mmf.KineticEnergyDT(self, pcr, DT, self.PrecInt)
     KE_DT = pcr.ifthenelse(DT == 0, 0, KE_DT)
-
-    # #-update plant height for months between harvest and sowing
-    # if self.harvest_FLAG:
-    #     self.PlantHeightUpdate = pcr.ifthenelse(self.Harvested == 1, self.PlantHeight_harvest, self.PlantHeight)
-    # else:
-    #     self.PlantHeightUpdate = self.PlantHeight
     
     #-determine kinetic energy of the leaf drainage
     KE_LD = self.mmf.KineticEnergyLD(self, pcr, LD, self.PlantHeightUpdate)
@@ -303,7 +179,6 @@ def dynamic(self, pcr, Precip, Runoff):
 
     #-report detachment of soil particles by raindrop impact (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRn', F * pcr.cellarea() / 1000)
-    # pcr.report(F * pcr.cellarea() / 1000, self.outpath + "DetRn_" + str(self.counter).zfill(3) + ".map")
 
     #-determine detachment of soil particles by runoff
     H_c = self.mmf.DetachmentRunoff(self, pcr, self.DR_c, self.RootClayMap, Runoff)
@@ -313,7 +188,6 @@ def dynamic(self, pcr, Precip, Runoff):
 
     #-report detachment of soil particles by runoff (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRun', H * pcr.cellarea() / 1000)
-    # pcr.report(H * pcr.cellarea() / 1000, self.outpath + "DetRun_" + str(self.counter).zfill(3) + ".map")
 
     #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
     if self.harvest_FLAG:
@@ -347,61 +221,9 @@ def dynamic(self, pcr, Precip, Runoff):
     #-report in field deposition of detached particles (ton / cell)
     self.reporting.reporting(self, pcr, 'SDepFld', D * pcr.cellarea() / 1000)
 
-    # #-Apply immediate deposition when sediment transport is not used
-    # if self.SedTransFLAG == 0 or self.SedTransEquation == 6:
-    #     #-Update flow velocity to determine particle fall number
-    #     if self.travelTimeFLAG == 1:
-    #         self.v_update = self.mmf.FlowVelocity(self, pcr, self.manningHillslope, pcr.max(self.waterDepth - self.channelDepth, 0))
-
-    #         #-determine particle fall number
-    #         N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
-    #         N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
-    #         N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.flowVelocity, pcr.max(self.waterDepth - self.channelDepth, 0))
-    #     else:
-    #         #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
-    #         if self.harvest_FLAG:
-    #             self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
-    #         else:
-    #             self.v_update = self.v_field
-
-    #         #-determine particle fall number
-    #         N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.v_update, self.d_field)
-    #         N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.v_update, self.d_field)
-    #         N_f_s = self.mmf.ParticleFallNumber(self, pcr, self.deltaSand, self.v_update, self.d_field)
-
-    #     #-determine percentage of the detached sediment that is deposited within the cell of origin
-    #     DEP_c = self.mmf.Deposition(self, pcr, N_f_c)
-    #     DEP_z = self.mmf.Deposition(self, pcr, N_f_z)
-    #     DEP_s = self.mmf.Deposition(self, pcr, N_f_s)
-
-    #     #-determine delivery of detached particles to runoff and sediment that is deposited within the cell of origin
-    #     tempvar = self.mmf.MaterialTransport(self, pcr, F_c, H_c, DEP_c)
-    #     G_c = tempvar[0]
-    #     D_c = tempvar[1]
-    #     tempvar = self.mmf.MaterialTransport(self, pcr, F_z, H_z, DEP_z)
-    #     G_z = tempvar[0]
-    #     D_z = tempvar[1]
-    #     tempvar = self.mmf.MaterialTransport(self, pcr, F_s, H_s, DEP_s)
-    #     G_s = tempvar[0]
-    #     D_s = tempvar[1]
-    #     G = G_c + G_z + G_s
-    #     D = D_c + D_z + D_s
-
-    #     #-report in field deposition of detached particles (ton / cell)
-    #     self.reporting.reporting(self, pcr, 'SDepFld', D * pcr.cellarea() / 1000)
-    # else:
-    #     #-Hillslope erosion equals detachment by raindrop impact and runoff
-    #     G = F + H
-
     #-In case sediment transport module is used
     if self.SedTransFLAG == 1 and self.SedTransEquation != 6:
-        # #-Hillslope erosion equals detachment by raindrop impact and runoff
-        # G = F + H
-
         #-Assign hillslope erosion (sum of detachment by raindrop impact and runoff) per sediment class to new attribute
-        # setattr(self, "SedClay", (F_c + H_c) * pcr.cellarea() / 1000)
-        # setattr(self, "SedSilt", (F_z + H_z) * pcr.cellarea() / 1000)
-        # setattr(self, "SedSand", (F_s + H_s) * pcr.cellarea() / 1000)
         setattr(self, "SedClay", (G_c) * pcr.cellarea() / 1000)
         setattr(self, "SedSilt", (G_z) * pcr.cellarea() / 1000)
         setattr(self, "SedSand", (G_s) * pcr.cellarea() / 1000)

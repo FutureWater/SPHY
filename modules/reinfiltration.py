@@ -1,10 +1,6 @@
-# The Spatial Processes in HYdrology (SPHY) model:
-# A spatially distributed hydrological model 
-# Copyright (C) 2013-2019  FutureWater
-# Email: sphy@futurewater.nl
-#
-# Authors (alphabetical order):
-# P. Droogers, J. Eekhout, W. Immerzeel, S. Khanal, A. Lutz, G. Simons, W. Terink
+# Re-infiltration module
+# Copyright (C) 2021-2023 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
+# Email: jeekhout@cebas.csic.es
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,17 +32,11 @@ def water_height(self, pcr, area, channelArea, floodplainFRAC):
     waterHeight = pcr.ifthenelse(floodplainFRAC, (area - channelArea) / self.floodplainWidth + self.channelDepth, area / self.channelWidth)
     return waterHeight
 
+#-function to determine infiltration
 def infiltration(pcr, infilPotential, waterHeight):
     Infil = pcr.ifthenelse(infilPotential > waterHeight, waterHeight, infilPotential)
     return Infil 
 
-
-# #-init re-infiltration processes
-# def init(self, pcr, pcrm, config, np):
-
-# #-initial conditions re-infiltration
-# def initial(self, pcr, config):
-    
 
 #-dynamic re-infiltration processes
 def dynamic(self, pcr):
@@ -64,50 +54,35 @@ def dynamic(self, pcr):
 
     #-Determine water height (mm) based on channel dimensions and channel storage
     waterHeight = self.reinfiltration.water_height(self, pcr, area, channelArea, floodplainFRAC) * 1e3
-    # pcr.report(waterHeight, self.outpath + "h_reinfiltration_" + str(self.counter).zfill(3) + ".map")
 
     #-Determine water height above floodplain (mm)
     waterHeightFloodplain = pcr.ifthenelse(floodplainFRAC, waterHeight - self.channelDepth * 1e3, 0)
-    # pcr.report(waterHeightFloodplain, self.outpath + "waterHeightFloodplain_" + str(self.counter).zfill(3) + ".map")
 
     #-Assume infiltration capacity to be equal to saturated hydraulic conductivity
     infilCapacity = self.RootKsat
 
     #-Determine infiltration potential (mm)
     infilPotential = pcr.max(0, pcr.min(infilCapacity, self.RootSat - self.RootWater))
-    # pcr.report(infilPotential, self.outpath + "infilPotential_1_" + str(self.counter).zfill(3) + ".map")
 
     #-Determine infiltration (mm) in case of floodplain flow
     infilFloodplain = pcr.ifthenelse(floodplainFRAC, self.reinfiltration.infiltration(pcr,infilPotential, waterHeightFloodplain), 0)
-    # pcr.report(infilFloodplain, self.outpath + "infilFloodplain_" + str(self.counter).zfill(3) + ".map")
 
     #-Subtract infiltration in floodplain from infiltration potential (mm)
     infilPotential = infilPotential - infilFloodplain
-    # pcr.report(infilPotential, self.outpath + "infilPotential_2_" + str(self.counter).zfill(3) + ".map")
 
     #-Subtract infiltration in floodplain from water height (mm)
     waterHeight = waterHeight - infilFloodplain
-    # pcr.report(waterHeight, self.outpath + "waterHeightInfil_" + str(self.counter).zfill(3) + ".map")
 
     #-Determine infiltration in the channel section
     infilChannel = self.reinfiltration.infiltration(pcr, infilPotential, waterHeight)
-    # pcr.report(infilChannel, self.outpath + "infilChannel_" + str(self.counter).zfill(3) + ".map")
 
     #-Determine the infiltration volume (m3) based on infiltration in floodplain and channel
     infilVolume = (infilFloodplain * 1e-3 * self.floodplainWidth + infilChannel * 1e-3 * self.channelWidth) * pcr.celllength()
-    # pcr.report(infilVolume, self.outpath + "infilVolume_" + str(self.counter).zfill(3) + ".map")
-
-    # #-Determine fraction of cell occupied by water
-    # waterFRAC = pcr.ifthenelse(floodplainFRAC, self.floodplainWidth, self.channelWidth) / pcr.celllength() * pcr.scalar(channelStorageFRAC)
-    # pcr.report(waterFRAC, self.outpath + "waterFRAC_" + str(self.counter).zfill(3) + ".map")
 
     #-Determine the re-infiltration (mm) per cell based on infiltration volume and cell area
     Infil = infilVolume / pcr.cellarea() * 1e3
-    # pcr.report(Infil, self.outpath + "Infil_" + str(self.counter).zfill(3) + ".map")
 
     #-Subtract infiltration volume from channel storage (m3)
-    # pcr.report(self.channelStorage, self.outpath + "channelStorage_1_" + str(self.counter).zfill(3) + ".map")
     self.channelStorage = self.channelStorage - infilVolume
-    # pcr.report(self.channelStorage, self.outpath + "channelStorage_2_" + str(self.counter).zfill(3) + ".map")
 
     return Infil

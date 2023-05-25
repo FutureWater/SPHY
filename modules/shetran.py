@@ -1,5 +1,5 @@
-# Soil erosion module using the SHETRAN soil erosion model
-# Copyright (C) 2020 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
+# The SHETRAN soil erosion model
+# Copyright (C) 2020-2023 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
 # Email: jeekhout@cebas.csic.es
 #
 # This program is free software: you can redistribute it and/or modify
@@ -212,7 +212,6 @@ def dynamic(self, pcr, np, Precip, Q):
 
     #-report detachment of soil particles by raindrop impact (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRn', D_r * pcr.cellarea() * 1e-3 * (24 * 60 * 60))
-    pcr.report(D_r * pcr.cellarea() * 1e-3 * (24 * 60 * 60), self.outpath + "DetRn_" + str(self.counter).zfill(3) + ".map")
  
     #-determine shear stress (N/m2)
     if self.travelTimeFLAG == 1:
@@ -232,7 +231,6 @@ def dynamic(self, pcr, np, Precip, Q):
 
     #-report detachment of soil particles by runoff (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRun', D_q * pcr.cellarea() * 1e-3 * (24 * 60 * 60))
-    pcr.report(D_q * pcr.cellarea() * 1e-3 * (24 * 60 * 60), self.outpath + "DetRun_" + str(self.counter).zfill(3) + ".map")
 
     #-Apply immediate deposition when sediment transport is not used
     if self.SedTransFLAG == 0:

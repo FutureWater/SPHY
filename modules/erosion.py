@@ -1,5 +1,5 @@
-# Soil erosion module using the Morgan-Morgan-Finney soil erosion model
-# Copyright (C) 2017-2019 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
+# Soil erosion module for the application of different soil erosion models
+# Copyright (C) 2017-2023 Joris Eekhout / Spanish National Research Council (CEBAS-CSIC)
 # Email: jeekhout@cebas.csic.es
 #
 # This program is free software: you can redistribute it and/or modify
@@ -88,42 +88,15 @@ def init(self, pcr, config, csv, np):
         self.Tillage_harvest = pcr.lookupscalar(EROSION_harvest_table, 5, self.LandUse)
     pcr.setglobaloption('columntable')
 
-    # #-read table with MMF input parameters per landuse class
-    # pcr.setglobaloption('matrixtable')
-    # EROSION_table = self.inpath + config.get('EROSION', 'EROSION_table')
-    # self.PlantHeight = pcr.lookupscalar(EROSION_table, 1, self.LandUse)
-    # self.NoElements = pcr.lookupscalar(EROSION_table, 2, self.LandUse)
-    # self.Diameter = pcr.lookupscalar(EROSION_table, 3, self.LandUse)
-    # self.CC_table = pcr.lookupscalar(EROSION_table, 4, self.LandUse)
-    # self.GC_table = pcr.lookupscalar(EROSION_table, 5, self.LandUse)
-    # self.NoErosion = pcr.lookupscalar(EROSION_table, 6, self.LandUse)
-    # self.Tillage = pcr.lookupscalar(EROSION_table, 7, self.LandUse)
-    # self.n_table = pcr.lookupscalar(EROSION_table, 8, self.LandUse)
-    # self.NoVegetation = pcr.lookupscalar(EROSION_table, 9, self.LandUse)
-    # pcr.setglobaloption('columntable')
-
-    # #-read table with MMF input parameters per landuse class for the period after harvest
-    # self.harvest_FLAG = config.getfloat('EROSION', 'harvestFLAG')
-    # pcr.setglobaloption('matrixtable')
-    # if self.harvest_FLAG:
-    #     EROSION_harvest_table = self.inpath + config.get('EROSION', 'EROSION_harvest')
-    #     self.Sowing = pcr.lookupscalar(EROSION_harvest_table, 1, self.LandUse)
-    #     self.Harvest = pcr.lookupscalar(EROSION_harvest_table, 2, self.LandUse)
-    #     self.PlantHeight_harvest = pcr.lookupscalar(EROSION_harvest_table, 3, self.LandUse)
-    #     self.NoElements_harvest = pcr.lookupscalar(EROSION_harvest_table, 4, self.LandUse)
-    #     self.Diameter_harvest = pcr.lookupscalar(EROSION_harvest_table, 5, self.LandUse)
-    #     self.CC_harvest = pcr.lookupscalar(EROSION_harvest_table, 6, self.LandUse)
-    #     self.GC_harvest = pcr.lookupscalar(EROSION_harvest_table, 7, self.LandUse)
-    #     self.Tillage_harvest = pcr.lookupscalar(EROSION_harvest_table, 8, self.LandUse)
-    # pcr.setglobaloption('columntable')
-
     #-nominal map with reservoir IDs and extent
     if self.ResFLAG == 1:
         if self.ETOpenWaterFLAG == 1:
             self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.openWaterNominal) > 0, pcr.scalar(1), pcr.scalar(0))
             self.Reservoirs = pcr.cover(self.Reservoirs, 0)
         else:
-            self.Reservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
+            # self.Reservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
+            self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.ResID) > 0, pcr.scalar(1), pcr.scalar(0))
+            self.Reservoirs = pcr.cover(self.Reservoirs, 0)
         self.NoErosion = pcr.min(self.NoErosion + pcr.scalar(self.Reservoirs), 1)
 
     #-Read rill flag
@@ -286,9 +259,5 @@ def dynamic(self, pcr, np, Precip, Q_m3, Q_mm):
     if self.ErosionModel == 6:
         #-determine soil erosion
         Sed = self.hspf.dynamic(self, pcr, np, Precip, Q_mm)
-
-    # pcr.report(Sed, self.outpath + "Sed_" + str(self.counter).zfill(3) + ".map")
-    # pcr.report(self.flowVelocity, self.outpath + "flowVelocity_" + str(self.counter).zfill(3) + ".map")
-    # pcr.report(self.waterDepth, self.outpath + "waterDepth_" + str(self.counter).zfill(3) + ".map")
     
     return Sed

@@ -50,20 +50,11 @@ def manningField(self, pcr, waterDepth):
 
 #-init processes roughness module
 def init(self, pcr, config):
-    #-Determine manning for soil and tilled conditions
+    #-read input parameters
     self.n_bare = config.getfloat('EROSION', 'manningBare')
     self.RFR = config.getfloat('EROSION', 'RFR')
-    # self.n_tilled = self.roughness.manningTillage(self, pcr)
     self.n_tilled = pcr.scalar(config.getfloat('EROSION', 'manningTillage'))
     self.n_soil = pcr.ifthenelse(self.Tillage == 1, self.n_tilled, self.n_bare)
-
-    # #-Determine roughness
-    # # manningHillslope, manningHillslopeHarvest = self.roughness.manningField(self, pcr, self.waterDepth)
-    # manningHillslope, manningHillslopeHarvest = self.roughness.manningField(self, pcr, self.d_field)
-
-    # #-Translate to MMF variables (temporary)
-    # self.n_field = manningHillslope
-    # self.n_field_harvest = manningHillslopeHarvest
 
 #-dynamic processes roughness module
 def dynamic(self, pcr):
@@ -82,8 +73,3 @@ def dynamic(self, pcr):
         self.manningHillslope = pcr.ifthenelse(self.Harvested == 1, self.n_field_harvest, self.n_field)
     else:
         self.manningHillslope = self.n_field
-    
-    # pcr.report(self.waterDepth, self.outpath + "waterDepth_" + str(self.counter).zfill(3) + ".map")
-    # pcr.report(self.n_field, self.outpath + "n_field_" + str(self.counter).zfill(3) + ".map")
-    # pcr.report(self.n_field_harvest, self.outpath + "n_field_harvest_" + str(self.counter).zfill(3) + ".map")
-    # pcr.report(self.manningHillslope, self.outpath + "manningHillslope_" + str(self.counter).zfill(3) + ".map")
