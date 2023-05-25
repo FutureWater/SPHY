@@ -1,6 +1,6 @@
 # The Spatial Processes in HYdrology (SPHY) model:
 # A spatially distributed hydrological model 
-# Copyright (C) 2013-2019  FutureWater
+# Copyright (C) 2013-2023  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
@@ -124,22 +124,14 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
         Qin = tempvar[2]
         self.QRAold = Q
     else:
-        # pcr.report(self.StorRES, self.outpath + "StorRES_" + str(self.counter).zfill(3) + ".map")
-        # pcr.report(Qout, self.outpath + "Qout_" + str(self.counter).zfill(3) + ".map")
-
         #-Update channelStorage by adding the total runoff (m3)
         self.channelStorage += pcr.upstream(self.FlowDir, Qout) + pcr.ifthenelse(self.QFRAC==0, 0, TotR * 0.001 * pcr.cellarea())
-        # pcr.report(self.channelStorage, self.outpath + "channelStorage_" + str(self.counter).zfill(3) + ".map")
 
         #-Determine flow velocity (m/day)
         flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
 
         #-Determine channel discharge (m3/s) for first iteration step
-        # print(flowVelocity)
-        # pcr.report(flowVelocity, self.outpath + "flowVelocity.map")
-        # exit()
         Q = pcr.accutraveltimefractionflux(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) / self.dT
-        # pcr.report(Q, self.outpath + "Q_" + str(self.counter).zfill(3) + ".map")
 
         # Only calculate inflow for lake/reservoir cells
         Qin = pcr.ifthenelse(self.QFRAC==0, pcr.upstream(self.FlowDir, Q * self.dT), 0)
@@ -151,14 +143,17 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
         self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
 
         #-Determine flow velocity (m/s), water depth (m) and resulting discharge (m3/s) through iteration
-        Q, u, self.hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
+        Q, u, hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
 
-        # store flow velocity
+        #-store flow velocity
         self.flowVelocity = u
 
-        # Only calculate inflow for lake/reservoir cells
+        #-Only calculate inflow for lake/reservoir cells
         Qin = pcr.ifthenelse(self.QFRAC==0, pcr.upstream(self.FlowDir, Q * self.dT), 0)
         self.StorRES = self.StorRES - Qout + Qin
+
+        #-Determine Q out in m3/s and store in reservoir cells of Q map
+        Q = pcr.ifthenelse(self.ResID != 0, Qout / (3600 * 24), Q)
 
         #-Determine flow velocity in m/day
         flowVelocity = u * self.dT
@@ -287,4 +282,8 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
             self.ResBaseInTSS.sample(cQin)
             self.ResBaseOutTSS.sample(cQout)
             self.ResBaseStorTSS.sample(self.BaseRAstor)
-    return Q
+    
+    if self.travelTimeFLAG == 1:
+        return Q, u, hydraulicRadius
+    else:
+        return Q
