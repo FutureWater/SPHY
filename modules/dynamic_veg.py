@@ -77,6 +77,8 @@ def dynamic(self, pcr, pcrm, np, Precip, ETref):
     ndvi = pcr.cover(ndvi, float(ndviAvg))
     #-set maximum value to 0.999
     ndvi = pcr.min(ndvi, 0.999)
+    #-Report ndvi
+    self.reporting.reporting(self, pcr, 'NDVI', ndvi)
 
     #-calculate the vegetation parameters
     vegoutput = self.dynamic_veg.Veg_function(pcr, ndvi, self.FPARmax, self.FPARmin, self.LAImax, self.NDVImin, self.NDVImax, self.KCmin, self.KCmax)
