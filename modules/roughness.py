@@ -32,14 +32,14 @@ def manningVegetation(waterDepth, diameter, noElements):
 
 #-Determine roughness
 def manningField(self, pcr, waterDepth):
-    #-Determine flow velocity for in field deposition
+    #-Determine Manning's roughness for in-field deposition
     manningHillslopeVegetation = self.roughness.manningVegetation(waterDepth, self.Diameter, self.NoElements)
     manningHillslopeVegetation = pcr.ifthenelse(self.NoVegetation == 1, 0, manningHillslopeVegetation)
     manningHillslopeVegetation = pcr.ifthenelse(self.NoErosion == 1, 0, manningHillslopeVegetation)
     manningHillslopeVegetation = pcr.ifthenelse(self.n_table > 0, self.n_table, manningHillslopeVegetation)
     manningHillslope = (self.n_soil**2 + manningHillslopeVegetation**2)**0.5
 
-    #-Determine flow velocity after harvest
+    #-Determine Manning's roughness after harvest
     if self.harvest_FLAG:
         manningHillslopeHarvestVegetation = self.roughness.manningVegetation(waterDepth, self.Diameter_harvest, self.NoElements_harvest)
         manningHillslopeHarvestVegetation = pcr.ifthenelse(self.Tillage_harvest == 1, 0, manningHillslopeHarvestVegetation)
@@ -65,10 +65,10 @@ def dynamic(self, pcr):
         self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
         self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
 
-    #-Determine flow velocity for in field deposition
+    #-Determine Manning's roughness for in-field deposition
     self.n_field, self.n_field_harvest = self.roughness.manningField(self, pcr, self.waterDepth)
 
-    #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
+    #-replace roughness for vegetated conditions for tilled soil conditions in case of harvested areas
     if self.harvest_FLAG:
         self.manningHillslope = pcr.ifthenelse(self.Harvested == 1, self.n_field_harvest, self.n_field)
     else:
