@@ -26,11 +26,11 @@ def init(self, pcr, config):
         self.conservationFLAG = 1
 
         #-read conservation measures map
-        self.input.input(self, config, pcr, 'conservationMeasures', 'EROSION', 'conservationMeasures', 0)
+        self.input.input(self, config, pcr, 'conservationMeasures', 'SEDIMENT_TRANS', 'conservationMeasures', 0)
 
         #-read table with conservation input parameters per conservation measure class
         pcr.setglobaloption('matrixtable')
-        CONSERVATION_table = self.inpath + config.get('EROSION', 'CONSERVATION_table')
+        CONSERVATION_table = self.inpath + config.get('SEDIMENT_TRANS', 'CONSERVATION_table')
         self.NoElements_conservation = pcr.lookupscalar(CONSERVATION_table, 1, self.conservationMeasures)
         self.Diameter_conservation = pcr.lookupscalar(CONSERVATION_table, 2, self.conservationMeasures)
         self.n_table_conservation = pcr.lookupscalar(CONSERVATION_table, 3, self.conservationMeasures)
