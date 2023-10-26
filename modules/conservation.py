@@ -21,10 +21,11 @@ print('conservation module imported')
 
 #-init processes
 def init(self, pcr, config):
-    try:
-        #-set conservation flag to 1
-        self.conservationFLAG = 1
+    #-read conservation flag
+    self.conservationFLAG = config.getint('SEDIMENT_TRANS','ConservationFLAG')
 
+    #-read input if conservation is used
+    if self.conservationFLAG == 1:
         #-read conservation measures map
         self.input.input(self, config, pcr, 'conservationMeasures', 'SEDIMENT_TRANS', 'conservationMeasures', 0)
 
@@ -41,6 +42,3 @@ def init(self, pcr, config):
         self.n_veg_TC_conservation = pcr.ifthenelse(self.n_table_conservation > 0, self.n_table_conservation, self.n_veg_TC_conservation)
         self.n_TC_conservation = (self.n_soil**2 + self.n_veg_TC_conservation**2)**0.5
         self.v_TC_conservation = self.mmf.FlowVelocity(self, pcr, self.n_TC_conservation, self.d_TC)
-    except:
-        #-set conservation flag to 0
-        self.conservationFLAG = 0
