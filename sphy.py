@@ -28,7 +28,7 @@ import pcraster as pcr
 import pcraster.framework as pcrm
 import numpy as np
 
-tic = time.clock()
+tic = time.time()
 
 # Read the model configuration file
 config = configparser.RawConfigParser()
