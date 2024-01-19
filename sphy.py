@@ -959,6 +959,6 @@ for i in tssfiles:
 		os.remove(SPHY.outpath + i)
 	shutil.move(i, SPHY.outpath)
 
-toc = time.clock()
+toc = time.time()
 dt = toc - tic
 print('Simulation succesfully completed in '+str(dt)+' seconds!')
