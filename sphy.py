@@ -852,7 +852,7 @@ class sphy(pcrm.DynamicModel):
 			GlacTable_MODid = GlacTable_MODid.groupby(GlacTable_MODid.index).sum()
 			GlacTable_MODid.fillna(0., inplace=True)
 			#-Report pcraster map of glacier depth
-			iceDepth = pcr.numpy.zeros(self.ModelID_1d.shape)
+			iceDepth = np.zeros(self.ModelID_1d.shape)
 			iceDepth[self.GlacierKeys] = GlacTable_MODid['ICE_DEPTH']
 			iceDepth = iceDepth.reshape(self.ModelID.shape)
 			iceDepth = pcr.numpy2pcr(pcr.Scalar, iceDepth, self.MV)
