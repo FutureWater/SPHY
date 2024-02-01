@@ -328,7 +328,7 @@ def dynamic_reporting(self, pcr, pd, np):
         #-Fill Glacier variable tables for reporting
         if self.GlacID_memerror == 0:
             for v in self.GlacVars:
-                vv = getattr(self, v + '_Table'); vv.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:]
+                vv = getattr(self, v + '_Table'); vv.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:].astype(np.float32)
             v = None; vv = None; del v, vv; GlacTable_GLACid = None; del GlacTable_GLACid
             if self.curdate == self.enddate: #-do the reporting at the final model time-step
                 for v in self.GlacVars:
@@ -337,7 +337,7 @@ def dynamic_reporting(self, pcr, pd, np):
             df = pd.DataFrame(columns=self.glacid, dtype=np.float32)
             for v in self.GlacVars:
                 #df = pd.DataFrame(columns=self.glacid, dtype=float)
-                df.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:]
+                df.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:].astype(np.float32)
                 if self.curdate == self.startdate:
                     df.to_csv(self.outpath + v + '.csv', mode='w')
                 else:
