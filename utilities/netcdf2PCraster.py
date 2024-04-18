@@ -25,7 +25,8 @@ import csv
 from scipy.interpolate import griddata
 from scipy import spatial
 from scipy.spatial import distance
-from pyproj import Proj, transform
+# from pyproj import Proj, transform
+from pyproj import Transformer
 from math import *
 
 #-file cache to minimize/reduce opening/closing files
@@ -34,11 +35,16 @@ filecache = dict()
 #-initial processes to determine the x and coordinates of the model grid and netcdf grid
 def netcdf2pcrInit(self, pcr, config, forcing):
     #-define input and ouput projections
+    # if getattr(self, forcing + 'InProj') == "rotated":
+    #     inProj = Proj(init="epsg:4326")
+    # else:
+    #     inProj = Proj(init = getattr(self, forcing + 'InProj'))
+    # outProj = Proj(init = getattr(self, forcing + 'OutProj'))
     if getattr(self, forcing + 'InProj') == "rotated":
-        inProj = Proj(init="epsg:4326")
+        inProj = "EPSG:4326"
     else:
-        inProj = Proj(init = getattr(self, forcing + 'InProj'))
-    outProj = Proj(init = getattr(self, forcing + 'OutProj'))
+        inProj = "EPSG:" + getattr(self, forcing + 'InProj')
+    outProj = "EPSG:" + getattr(self, forcing + 'OutProj')
 
     #-get the attributes of cloneMap
     attributeClone = getMapAttributesALL(self.clonefile)
@@ -61,10 +67,15 @@ def netcdf2pcrInit(self, pcr, config, forcing):
     xLRClone = xURClone
 
     #-transform coordinates to netcdf projection coordinates
-    xULCloneInput,yULCloneInput = transform(outProj, inProj, xULClone, yULClone)
-    xURCloneInput,yURCloneInput = transform(outProj, inProj, xURClone, yURClone)
-    xLRCloneInput,yLRCloneInput = transform(outProj, inProj, xLRClone, yLRClone)
-    xLLCloneInput,yLLCloneInput = transform(outProj, inProj, xLLClone, yLLClone)
+    # xULCloneInput,yULCloneInput = transform(outProj, inProj, xULClone, yULClone)
+    # xURCloneInput,yURCloneInput = transform(outProj, inProj, xURClone, yURClone)
+    # xLRCloneInput,yLRCloneInput = transform(outProj, inProj, xLRClone, yLRClone)
+    # xLLCloneInput,yLLCloneInput = transform(outProj, inProj, xLLClone, yLLClone)
+    transformer = Transformer.from_crs(outProj, inProj)
+    yULCloneInput,xULCloneInput = transformer.transform(xULClone, yULClone)
+    yURCloneInput,xURCloneInput = transformer.transform(xURClone, yURClone)
+    yLRCloneInput,xLRCloneInput = transformer.transform(xLRClone, yLRClone)
+    yLLCloneInput,xLLCloneInput = transformer.transform(xLLClone, yLLClone)
 
     #-determine netcdf cell size and subset coordinates to model domain
     if getattr(self, forcing + 'InProj') == "rotated":
@@ -138,7 +149,9 @@ def netcdf2pcrInit(self, pcr, config, forcing):
         x,y = np.meshgrid(x, y)
 
     #-project x and y coordinates to model grid projection
-    x,y = transform(inProj, outProj, x, y)
+    # x,y = transform(inProj, outProj, x, y)
+    transformer2 = Transformer.from_crs(inProj, outProj)
+    x,y = transformer2.transform(y, x)
 
     #-transform x and y coordinates to arrays
     x = np.asarray(x).ravel()
