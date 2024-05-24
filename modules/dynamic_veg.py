@@ -68,7 +68,11 @@ def initial(self, pcr):
 def dynamic(self, pcr, pcrm, np, Precip, ETref):
     #-try to read the ndvi map series. If not available, then use ndvi old
     try:
-        ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.counter))
+        # ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.counter))
+        try:
+            ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.counter))
+        except:
+            ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.curdate.timetuple().tm_yday))
     except:
         ndvi = self.ndviOld
     self.ndviOld = ndvi
