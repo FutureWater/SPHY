@@ -28,7 +28,7 @@ import pcraster as pcr
 import pcraster.framework as pcrm
 import numpy as np
 
-tic = time.clock()
+tic = time.perf_counter()
 
 # Read the model configuration file
 config = configparser.RawConfigParser()
@@ -984,6 +984,6 @@ for i in tssfiles:
 		os.remove(SPHY.outpath + i)
 	shutil.move(i, SPHY.outpath)
 
-toc = time.clock()
+toc = time.perf_counter()
 dt = toc - tic
 print('Simulation succesfully completed in '+str(dt)+' seconds!')
