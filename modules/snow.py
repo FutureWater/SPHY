@@ -23,9 +23,20 @@
 print('snow module imported')
 
 #-Function to calculate the potential snow melt
-def PotSnowMelt(pcr, temp, ddfs):
-    melt = pcr.max(0, temp) * ddfs
+# def PotSnowMelt(pcr, temp, ddfs):
+#     melt = pcr.max(0, temp) * ddfs
+#     return melt
+
+#-Function to calculate the potential snow melt sonu added
+def PotSnowMelt(pcr, temp,tempmax, ddfs):
+    thour = pcr.scalar(0)
+    for ij in range(1,25,1):
+        th_max = pcr.max(0,(temp + (tempmax-temp)*pcr.cos(3.1415*ij/12)))
+        thour = thour + th_max
+    melt = thour * ddfs /24
     return melt
+#-Function to calculate the potential snow melt sonu added
+
 #-Function to calculate the actual snow melt
 def ActSnowMelt(pcr, snowstore, potmelt):
     melt = pcr.min(snowstore, potmelt)
@@ -58,7 +69,7 @@ def SnowR(pcr, snowwatstore, maxsnowwatstore, actmelt, rain, oldsnowwatstore, sn
 
 #-init snow processes
 def init(self, pcr, config):
-    pars = ['Tcrit','SnowSC','DDFS']
+    pars = ['Tcrit','SnowSC','DDFS','SnowF','SnowCth']
     for	i in pars:
         try:
             setattr(self, i, pcr.readmap(self.inpath + config.get('SNOW',i)))
@@ -79,15 +90,15 @@ def initial(self, pcr, config):
     self.TotalSnowStore = self.SnowStore + self.SnowWatStore
 
 #-dynamic snow processes
-def dynamic(self, pcr, Temp, Precip, Snow_GLAC, ActSnowMelt_GLAC, SnowFrac, RainFrac, SnowR_GLAC):
+def dynamic(self, pcr, Temp, TempMax, Precip, Snow_GLAC, ActSnowMelt_GLAC, SnowFrac, RainFrac, SnowR_GLAC):
     #-Snow and rain differentiation
     Snow = pcr.ifthenelse(Temp >= self.Tcrit, 0, Precip)
     Rain = pcr.ifthenelse(Temp < self.Tcrit, 0, Precip)
     #-Report Snow for entire cell (snow+glacier fraction)
     self.reporting.reporting(self, pcr, 'TotSnow', Snow)
     self.reporting.reporting(self, pcr, 'TotSnowF', Snow * (1-self.GlacFrac) + Snow_GLAC)
-    #-Snow melt
-    PotSnowMelt = self.snow.PotSnowMelt(pcr, Temp, self.DDFS)
+    #-Snow melt sonu added
+    PotSnowMelt = pcr.ifthenelse(TempMax < 0,0,self.snow.PotSnowMelt(pcr, Temp,TempMax, self.DDFS))
     ActSnowMelt = self.snow.ActSnowMelt(pcr, self.SnowStore, PotSnowMelt)
     #-Report snow melt for entire cell (snow+glacier fraction)
     self.reporting.reporting(self, pcr, 'TotSnowMelt', ActSnowMelt)
@@ -98,19 +109,23 @@ def dynamic(self, pcr, Temp, Precip, Snow_GLAC, ActSnowMelt_GLAC, SnowFrac, Rain
     MaxSnowWatStore = self.snow.MaxSnowWatStorage(self.SnowSC, self.SnowStore)
     OldSnowWatStore = self.SnowWatStore
     #-Calculate the actual amount of water stored in snowwatstore
-    self.SnowWatStore = self.snow.SnowWatStorage(pcr, Temp, MaxSnowWatStore, self.SnowWatStore, ActSnowMelt, Rain)
+    self.SnowWatStore = self.snow.SnowWatStorage(pcr, TempMax, MaxSnowWatStore, self.SnowWatStore, ActSnowMelt, Rain)
     #-Changes in total water storage in snow (SnowStore and SnowWatStore)
     OldTotalSnowStore = self.TotalSnowStore
     self.TotalSnowStore = self.snow.TotSnowStorage(self.SnowStore, self.SnowWatStore, SnowFrac, RainFrac) + self.TotalSnowStore_GLAC  # for entire cell
     #-Report Snow storage
     self.reporting.reporting(self, pcr, 'StorSnow', self.TotalSnowStore)
     #-Determine if cell is covered with snow
-    SnowCover = pcr.ifthenelse(self.TotalSnowStore > 0, pcr.scalar(1), pcr.scalar(0))
+    SnowCover = pcr.ifthenelse(self.TotalSnowStore > self.SnowCth, pcr.scalar(1), pcr.scalar(0))
     self.reporting.reporting(self, pcr, 'SCover', SnowCover)
+    self.reporting.reporting(self, pcr, 'StorSnowW',self.SnowWatStore) #sonu added note this is only SnowWatStore
     #-Snow runoff
     SnowR = self.snow.SnowR(pcr, self.SnowWatStore, MaxSnowWatStore, ActSnowMelt, Rain, OldSnowWatStore, SnowFrac) + SnowR_GLAC  # for entire cell
+    ##sonu added snow infiltration##
+    SnowSoil = SnowR * self.SnowF
+    SnowR = SnowR * (1-self.SnowF)
     SnowR = SnowR * (1-self.openWaterFrac)
     #-Report Snow runoff
     self.reporting.reporting(self, pcr, 'TotSnowRF', SnowR)
 
-    return Rain, SnowR, OldTotalSnowStore
+    return Rain, SnowR, SnowSoil, OldTotalSnowStore
