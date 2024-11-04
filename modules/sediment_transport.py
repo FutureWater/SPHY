@@ -242,7 +242,7 @@ def dynamic(self, pcr, np, Q, Sed):
                 TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, h, l, Q, D50, self.Slope, self.SedTransEquation)
 
             #-Determine transport capacity in the rills when rills are simulated
-            if self.RillFLAG == 1:
+            if self.travelTimeFLAG == 1:
                 #-Determine transport capacity of the flow (g/l)
                 if self.travelTimeFLAG == 1:
                     TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquationRills)

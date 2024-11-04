@@ -859,13 +859,13 @@ class sphy(pcrm.DynamicModel):
 				#-read dynamic reporting processes glacier
 				self.glacier.dynamic_reporting(self, pcr, pd, np)
 
-		#-Re-infiltration
-		if self.ReInfiltrationFLAG == 1 and self.travelTimeFLAG == 1:
-			#-Determine re-infiltration
-			Infil = self.reinfiltration.dynamic(self, pcr)
+			#-Re-infiltration
+			if self.ReInfiltrationFLAG == 1 and self.travelTimeFLAG == 1:
+				#-Determine re-infiltration
+				Infil = self.reinfiltration.dynamic(self, pcr)
 
-			#-Add to rootwater
-			self.RootWater = self.RootWater + Infil
+				#-Add to rootwater
+				self.RootWater = self.RootWater + Infil
 
 		#-Water balance
 		if self.GlacFLAG and self.GlacRetreat == 1:

@@ -71,6 +71,20 @@ def flowVelocity(self, pcr, waterDepth):
 
     return flowVelocity, hydraulicRadius
 
+#-Determine rill dimensions based on minimum and maximum rill size
+def rillDimensions(pcr, self):
+    #-Determine maximum accuflux on the hillslopes
+    rill = self.channelHillslope == 1
+    accufluxMax = pcr.areamaximum(pcr.accuflux(self.FlowDir, 1), rill)
+    
+    #-Determine fraction of accuflux with respect to maximum accuflux on hillslope
+    accufluxFraction = pcr.accuflux(self.FlowDir, 1) / accufluxMax
+
+    #-Determine rill width based on minimum and maximum rill size
+    rillWidth = self.minRillWidth + (self.maxRillWidth - self.minRillWidth) * accufluxFraction
+
+    return rillWidth
+
 #-Function to rout water using the accuflux travel time algorithm
 def flow_velocity_iteration(self, pcr, qOld):
     #-Set maximum absolute and relative differences to a high dummy value 
@@ -107,8 +121,10 @@ def flow_velocity_iteration(self, pcr, qOld):
         self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
 
         #-Determine hillslope roughness and assign to hillslopes (both channel and floodplain)
-        if self.ErosionFLAG and self.RillFLAG:
+        if self.ErosionFLAG:
             self.roughness.dynamic(self, pcr)
+        else:
+            self.manningHillslope = self.manningRill
         
         #-Update channel and floodplain manning
         self.manningChannel = pcr.ifthenelse(self.channelHillslope == 2, self.manningRill, self.manningChannel)
@@ -135,12 +151,30 @@ def init(self, pcr, pcrm, config, np):
     self.input.input(self, config, pcr, 'floodplainWidth', 'ROUTING', 'floodplainWidth', pcr.celllength())
     self.input.input(self, config, pcr, 'channelHillslope', 'ROUTING', 'channelHillslope', 1)
 
+    #-in case of a differentiation between channels and hillslopes
     if pcr.pcr2numpy(pcr.mapmaximum(self.channelHillslope), 1)[0, 0] == 2:
         #-Set floodplain width to cell width for hillslope cells
         self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
 
         #-Set channel depth to small value for hillslope cells
         self.channelDepth = pcr.ifthenelse(self.channelHillslope == 2, 1e-3, self.channelDepth)
+
+        #-Read min and max rill width
+        self.input.input(self, config, pcr, 'minRillWidth', 'ROUTING', 'minRillWidth', 0.05)
+        self.input.input(self, config, pcr, 'maxRillWidth', 'ROUTING', 'maxRillWidth', 0.3)
+
+        #-Determine rill width based on min and max and set rill depth equal to rill width
+        self.rillWidth = self.travel_time_routing.rillDimensions(pcr, self)
+        self.rillDepth = self.rillWidth
+
+        #-Set floodplain width to cell width for hillslope cells
+        self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
+
+        #-Set channel depth to rill depth for hillslope cells
+        self.channelDepth = pcr.ifthenelse(self.channelHillslope == 2, self.rillDepth, self.channelDepth)
+
+        #-Set channel width to rill width for hillslope cells
+        self.channelWidth = pcr.ifthenelse(self.channelHillslope == 2, self.rillWidth, self.channelWidth)
 
     #-Read stability thresholds
     self.thresholdAbs = config.getfloat('ROUTING', 'thresholdIteration')
@@ -161,7 +195,6 @@ def init(self, pcr, pcrm, config, np):
     #-determine accuflux map
     self.channel = pcr.ifthen(self.channelHillslope == 1, self.ones)
     self.accuflux = pcr.accuflux(self.FlowDir, 1)
-    self.accufluxChannel = pcr.accuflux(pcr.ifthen(self.channelHillslope == 1, self.FlowDir), 1)
 
     #-determine number of channel segments
     self.noChannelSegments = int(pcr.pcr2numpy(pcr.mapmaximum(pcr.scalar(self.clumpedStreamOrder)), -9999)[0, 0])

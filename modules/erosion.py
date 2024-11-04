@@ -23,19 +23,19 @@ def numberOfRills(pcr, Flow, MC, S, RR, Re):
     N = 0.66 + 0.69 * pcr.ln(Flow) + 0.91 * pcr.ln(MC) + 2.04 * pcr.ln(S) - 0.37 * pcr.ln(RR) - 0.37 * pcr.ln(Re)
     return N
 
-#-Determine rill dimensions based on minimum and maximum rill size
-def rillDimensions(pcr, self):
-    #-Determine maximum accuflux on the hillslopes
-    rill = self.channelHillslope == 1
-    accufluxMax = pcr.areamaximum(pcr.accuflux(self.FlowDir, 1), rill)
+# #-Determine rill dimensions based on minimum and maximum rill size
+# def rillDimensions(pcr, self):
+#     #-Determine maximum accuflux on the hillslopes
+#     rill = self.channelHillslope == 1
+#     accufluxMax = pcr.areamaximum(pcr.accuflux(self.FlowDir, 1), rill)
     
-    #-Determine fraction of accuflux with respect to maximum accuflux on hillslope
-    accufluxFraction = pcr.accuflux(self.FlowDir, 1) / accufluxMax
+#     #-Determine fraction of accuflux with respect to maximum accuflux on hillslope
+#     accufluxFraction = pcr.accuflux(self.FlowDir, 1) / accufluxMax
 
-    #-Determine rill width based on minimum and maximum rill size
-    rillWidth = self.minRillWidth + (self.maxRillWidth - self.minRillWidth) * accufluxFraction
+#     #-Determine rill width based on minimum and maximum rill size
+#     rillWidth = self.minRillWidth + (self.maxRillWidth - self.minRillWidth) * accufluxFraction
 
-    return rillWidth
+#     return rillWidth
 
 #-init processes erosion module
 def init(self, pcr, config, csv, np):
@@ -99,30 +99,27 @@ def init(self, pcr, config, csv, np):
             self.Reservoirs = pcr.cover(self.Reservoirs, 0)
         self.NoErosion = pcr.min(self.NoErosion + pcr.scalar(self.Reservoirs), 1)
 
-    #-Read rill flag
-    self.RillFLAG = config.getint('EROSION', 'RillFLAG')
+    # #-Read rill flag
+    # self.RillFLAG = config.getint('EROSION', 'RillFLAG')
 
-    #-If rill flag is equal to 1 than calculate random roughness, rill dimensions and adjust floodplain width and channel depth
-    if self.RillFLAG == 1 and self.travelTimeFLAG == 1:
-        #-Determine random roughness based on RFR (Table 2.2; Morgan, 2005)
-        self.randomRoughness = pcr.exp(0.29 + 0.099 * self.Tillage) * 1e-3
+    # #-If rill flag is equal to 1 than calculate rill dimensions and adjust floodplain width and channel depth
+    # if self.RillFLAG == 1 and self.travelTimeFLAG == 1:
+    #     #-Read min and max rill width
+    #     self.minRillWidth = config.getfloat('EROSION', 'minRillWidth')
+    #     self.maxRillWidth = config.getfloat('EROSION', 'maxRillWidth')
 
-        #-Read min and max rill width
-        self.minRillWidth = config.getfloat('EROSION', 'minRillWidth')
-        self.maxRillWidth = config.getfloat('EROSION', 'maxRillWidth')
+    #     #-Determine rill width based on min and max and set rill depth equal to rill width
+    #     self.rillWidth = self.erosion.rillDimensions(pcr, self)
+    #     self.rillDepth = self.rillWidth
 
-        #-Determine rill width based on min and max and set rill depth equal to rill width
-        self.rillWidth = self.erosion.rillDimensions(pcr, self)
-        self.rillDepth = self.rillWidth
+    #     #-Set floodplain width to cell width for hillslope cells
+    #     self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
 
-        #-Set floodplain width to cell width for hillslope cells
-        self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
+    #     #-Set channel depth to rill depth for hillslope cells
+    #     self.channelDepth = pcr.ifthenelse(self.channelHillslope == 2, self.rillDepth, self.channelDepth)
 
-        #-Set channel depth to rill depth for hillslope cells
-        self.channelDepth = pcr.ifthenelse(self.channelHillslope == 2, self.rillDepth, self.channelDepth)
-
-        #-Set channel width to rill width for hillslope cells
-        self.channelWidth = pcr.ifthenelse(self.channelHillslope == 2, self.rillWidth, self.channelWidth)
+    #     #-Set channel width to rill width for hillslope cells
+    #     self.channelWidth = pcr.ifthenelse(self.channelHillslope == 2, self.rillWidth, self.channelWidth)
 
     #-import roughness module
     import modules.roughness
