@@ -77,8 +77,7 @@ def dynamic(self, pcr, pcrm, np, Precip, ETref):
         ndvi = self.ndviOld
     self.ndviOld = ndvi
     #-fill missing ndvi values with average
-    ndviAvg = np.nanmean(pcr.pcr2numpy(ndvi, np.nan))
-    ndvi = pcr.cover(ndvi, float(ndviAvg))
+    ndvi = pcr.cover(ndvi, pcr.areaaverage(ndvi, self.clone))
     #-set maximum value to 0.999
     ndvi = pcr.min(ndvi, 0.999)
     #-Report ndvi
