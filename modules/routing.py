@@ -78,6 +78,16 @@ def dynamic(self, pcr, TotR):
             setattr(self, i + 'RAold', ParsRA)
             self.reporting.reporting(self, pcr, i + 'RAtot', ParsRA)
             if self.mm_rep_FLAG == 1 and getattr(self, 'Q' + i.upper() + '_mm_FLAG') == 1:
-                setattr(self, 'Q' + i.upper() + 'SubBasinTSS.sample', ((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
-                    
+                if i == "RootR":
+                    self.QROOTRSubBasinTSS.sample(((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
+                if i == "RootD":
+                    self.QROOTDSubBasinTSS.sample(((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
+                if i == "Rain":
+                    self.QRAINSubBasinTSS.sample(((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
+                if i == "Snow":
+                    self.QSNOWSubBasinTSS.sample(((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
+                if i == "Glac":
+                    self.QGLACSubBasinTSS.sample(((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
+                if i == "Base":
+                    self.QBASESubBasinTSS.sample(((ParsRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
     return Q
