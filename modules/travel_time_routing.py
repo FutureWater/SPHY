@@ -150,6 +150,7 @@ def init(self, pcr, pcrm, config, np):
     self.input.input(self, config, pcr, 'channelDepth', 'ROUTING', 'channelDepth', 0)
     self.input.input(self, config, pcr, 'floodplainWidth', 'ROUTING', 'floodplainWidth', pcr.celllength())
     self.input.input(self, config, pcr, 'channelHillslope', 'ROUTING', 'channelHillslope', 1)
+    self.input.input(self, config, pcr, 'inundationThreshold', 'ROUTING', 'inundationThreshold', 0)
 
     #-in case of a differentiation between channels and hillslopes
     if pcr.pcr2numpy(pcr.mapmaximum(self.channelHillslope), 1)[0, 0] == 2:
@@ -285,6 +286,10 @@ def dynamic(self, pcr, TotR):
     self.reporting.reporting(self, pcr, 'FlowV', u)
     self.reporting.reporting(self, pcr, 'HydraulicRadius', hydraulicRadius)
     self.reporting.reporting(self, pcr, 'WaterDepth', self.waterDepth)
+
+    #-Update inundation frequency
+    self.inundationFrequency = pcr.ifthenelse(self.waterDepth > (self.channelDepth + self.inundationThreshold), pcr.scalar(1), pcr.scalar(0))
+    self.reporting.reporting(self, pcr, 'InundationFreq', self.inundationFrequency)
 
     #-Determine flow velocity in m/day
     flowVelocity = u * self.dT
