@@ -245,6 +245,13 @@ class sphy(pcrm.DynamicModel):
 			PFactor = self.inpath + config.get('PWS', 'PFactor')
 			self.PMap = pcr.lookupscalar(PFactor, self.LandUse)
 
+			#-check if rooting depth exists in the configuration file, otherwise assign 1 to each cell
+			if config.has_option('PWS', 'RootingDepth'):
+				RootingDepth = self.inpath + config.get('PWS', 'RootingDepth')
+				self.ZrMap = pcr.lookupscalar(RootingDepth, self.LandUse)
+			else:
+				self.ZrMap = self.ones
+
 		#-read and set glacier maps and parameters if glacier module is used
 		if self.GlacFLAG:
 			#-import glacier module
