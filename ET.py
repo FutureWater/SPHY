@@ -32,7 +32,7 @@ def ETact(pcr, etpot, rootwater, rootsat, etreddry, rainfrac):
 
 #-Determine plant water stress for calculation of actual evapotranspiration
 def ks(self, pcr, etpot):
-    TAW = (self.RootField - self.RootDry) * self.ZrMap
+    TAW = (self.RootField - self.RootDry) * self.RootDepthFlat * 1e-3
     p = pcr.max(pcr.min(self.PMap + 0.04 * (5 - etpot), 0.8), 0.1)
     RAW = TAW * p
     Dr = self.RootField - self.RootWater

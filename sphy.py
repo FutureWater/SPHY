@@ -202,6 +202,21 @@ class sphy(pcrm.DynamicModel):
 
 			self.SubDrainVel = self.SubKsat * self.Slope
 
+		#-read land use map
+		self.LandUse = pcr.readmap(self.inpath + config.get('LANDUSE','LandUse'))
+
+		#-read the p factor table if the plant water stress module is used
+		self.PlantWaterStressFLAG = config.getint('PWS','PWS_FLAG')
+		if self.PlantWaterStressFLAG == 1:
+			PFactor = self.inpath + config.get('PWS', 'PFactor')
+			self.PMap = pcr.lookupscalar(PFactor, self.LandUse)
+
+			#-check if rooting depth exists in the configuration file, otherwise assign 1 to each cell
+			if config.has_option('PWS', 'RootingDepth'):
+				RootingDepth = self.inpath + config.get('PWS', 'RootingDepth')
+				self.RootDepthFrac = config.getfloat('PWS', 'RootDepthFrac')
+				self.RootDepthFlat = pcr.lookupscalar(RootingDepth, self.LandUse) * 1e3 * self.RootDepthFrac
+
 		#-calculate soil properties
 		self.RootField = self.RootFieldMap * self.RootDepthFlat
 		self.RootSat = self.RootSatMap * self.RootDepthFlat
@@ -215,9 +230,6 @@ class sphy(pcrm.DynamicModel):
 		if self.GroundFLAG == 0:
 			self.SoilMax = self.RootSat + self.SubSat
 			self.SoilMin = self.RootDry + self.SubField
-
-		#-read land use map
-		self.LandUse = pcr.readmap(self.inpath + config.get('LANDUSE','LandUse'))
 
 		#-Use the dynamic vegetation module
 		if self.DynVegFLAG == 1:
@@ -239,18 +251,18 @@ class sphy(pcrm.DynamicModel):
 				#-set the kc map series
 				self.Kcmaps = self.inpath + config.get('LANDUSE', 'KC')
 
-		#-read the p factor table if the plant water stress module is used
-		self.PlantWaterStressFLAG = config.getint('PWS','PWS_FLAG')
-		if self.PlantWaterStressFLAG == 1:
-			PFactor = self.inpath + config.get('PWS', 'PFactor')
-			self.PMap = pcr.lookupscalar(PFactor, self.LandUse)
+		# #-read the p factor table if the plant water stress module is used
+		# self.PlantWaterStressFLAG = config.getint('PWS','PWS_FLAG')
+		# if self.PlantWaterStressFLAG == 1:
+		# 	PFactor = self.inpath + config.get('PWS', 'PFactor')
+		# 	self.PMap = pcr.lookupscalar(PFactor, self.LandUse)
 
-			#-check if rooting depth exists in the configuration file, otherwise assign 1 to each cell
-			if config.has_option('PWS', 'RootingDepth'):
-				RootingDepth = self.inpath + config.get('PWS', 'RootingDepth')
-				self.ZrMap = pcr.lookupscalar(RootingDepth, self.LandUse)
-			else:
-				self.ZrMap = self.ones
+		# 	#-check if rooting depth exists in the configuration file, otherwise assign 1 to each cell
+		# 	if config.has_option('PWS', 'RootingDepth'):
+		# 		RootingDepth = self.inpath + config.get('PWS', 'RootingDepth')
+		# 		self.ZrMap = pcr.lookupscalar(RootingDepth, self.LandUse)
+		# 	else:
+		# 		self.ZrMap = self.ones
 
 		#-read and set glacier maps and parameters if glacier module is used
 		if self.GlacFLAG:
