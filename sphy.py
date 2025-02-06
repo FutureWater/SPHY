@@ -630,6 +630,8 @@ class sphy(pcrm.DynamicModel):
 		else:
 			#-read forcing by map input
 			Temp = pcr.readmap(pcrm.generateNameT(self.Tair, self.counter))
+		#-Report Temp
+		self.reporting.reporting(self, pcr, 'TAvg', Temp)
 
 		if self.ETREF_FLAG == 0:
 			if self.TminNetcdfFLAG == 1:
