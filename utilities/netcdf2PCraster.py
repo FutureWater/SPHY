@@ -19,13 +19,10 @@ import subprocess
 import netCDF4 as nc 
 import os
 import numpy as np
-# import sys
-# np.set_printoptions(threshold=sys.maxsize)
 import csv
 from scipy.interpolate import griddata
 from scipy import spatial
 from scipy.spatial import distance
-# from pyproj import Proj, transform
 from pyproj import Transformer
 from math import *
 
@@ -35,11 +32,6 @@ filecache = dict()
 #-initial processes to determine the x and coordinates of the model grid and netcdf grid
 def netcdf2pcrInit(self, pcr, config, forcing):
     #-define input and ouput projections
-    # if getattr(self, forcing + 'InProj') == "rotated":
-    #     inProj = Proj(init="epsg:4326")
-    # else:
-    #     inProj = Proj(init = getattr(self, forcing + 'InProj'))
-    # outProj = Proj(init = getattr(self, forcing + 'OutProj'))
     if getattr(self, forcing + 'InProj') == "rotated":
         inProj = "EPSG:4326"
     else:
@@ -67,15 +59,18 @@ def netcdf2pcrInit(self, pcr, config, forcing):
     xLRClone = xURClone
 
     #-transform coordinates to netcdf projection coordinates
-    # xULCloneInput,yULCloneInput = transform(outProj, inProj, xULClone, yULClone)
-    # xURCloneInput,yURCloneInput = transform(outProj, inProj, xURClone, yURClone)
-    # xLRCloneInput,yLRCloneInput = transform(outProj, inProj, xLRClone, yLRClone)
-    # xLLCloneInput,yLLCloneInput = transform(outProj, inProj, xLLClone, yLLClone)
-    transformer = Transformer.from_crs(outProj, inProj)
-    yULCloneInput,xULCloneInput = transformer.transform(xULClone, yULClone)
-    yURCloneInput,xURCloneInput = transformer.transform(xURClone, yURClone)
-    yLRCloneInput,xLRCloneInput = transformer.transform(xLRClone, yLRClone)
-    yLLCloneInput,xLLCloneInput = transformer.transform(xLLClone, yLLClone)
+    if outProj != inProj:
+        transformer = Transformer.from_crs(outProj, inProj)
+        yULCloneInput,xULCloneInput = transformer.transform(xULClone, yULClone)
+        yURCloneInput,xURCloneInput = transformer.transform(xURClone, yURClone)
+        yLRCloneInput,xLRCloneInput = transformer.transform(xLRClone, yLRClone)
+        yLLCloneInput,xLLCloneInput = transformer.transform(xLLClone, yLLClone)
+    else:
+        yULCloneInput,xULCloneInput = yULClone, xULClone
+        yURCloneInput,xURCloneInput = yURClone, xURClone
+        yLRCloneInput,xLRCloneInput = yLRClone, xLRClone
+        yLLCloneInput,xLLCloneInput = yLLClone, xLLClone
+
 
     #-determine netcdf cell size and subset coordinates to model domain
     if getattr(self, forcing + 'InProj') == "rotated":
@@ -136,23 +131,23 @@ def netcdf2pcrInit(self, pcr, config, forcing):
         cellsizeInput = float(cellsizeInput)
 
         #-determine x-coordinates corresponding to model grid (+ buffer) from netcdf grid
-        xIdxSta = np.argmin(abs(f.variables[getattr(self, forcing + 'VarX')][:] - (min(xULCloneInput, xLLCloneInput) - 2 * cellsizeInput)))
-        xIdxEnd = np.argmin(abs(f.variables[getattr(self, forcing + 'VarX')][:] - (max(xURCloneInput, xLRCloneInput) + 2 * cellsizeInput)))
+        xIdxSta = np.argmin(abs(f.variables[getattr(self, forcing + 'VarX')][:] - (min(xULCloneInput, xLLCloneInput) + 2 * cellsizeInput)))
+        xIdxEnd = np.argmin(abs(f.variables[getattr(self, forcing + 'VarX')][:] - (max(xURCloneInput, xLRCloneInput) - 2 * cellsizeInput)))
         x = f.variables[getattr(self, forcing + 'VarX')][xIdxSta:(xIdxEnd + 1)]
 
         #-determine y-coordinates corresponding to model grid (+ buffer) from netcdf grid
-        yIdxEnd = np.argmin(abs(f.variables[getattr(self, forcing + 'VarY')][:] - (max(yULCloneInput, yURCloneInput) + 2 * cellsizeInput)))
-        yIdxSta = np.argmin(abs(f.variables[getattr(self, forcing + 'VarY')][:] - (min(yLLCloneInput, yLRCloneInput) - 2 * cellsizeInput)))
+        yIdxSta = np.argmin(abs(f.variables[getattr(self, forcing + 'VarY')][:] - (max(yULCloneInput, yURCloneInput) - 2 * cellsizeInput)))
+        yIdxEnd = np.argmin(abs(f.variables[getattr(self, forcing + 'VarY')][:] - (min(yLLCloneInput, yLRCloneInput) + 2 * cellsizeInput)))
         y = f.variables[getattr(self, forcing + 'VarY')][yIdxSta:(yIdxEnd + 1)]
 
         #-transform x and y coordinates to grid
         x,y = np.meshgrid(x, y)
 
     #-project x and y coordinates to model grid projection
-    # x,y = transform(inProj, outProj, x, y)
-    transformer2 = Transformer.from_crs(inProj, outProj)
-    x,y = transformer2.transform(y, x)
-
+    if outProj != inProj:
+        transformer2 = Transformer.from_crs(inProj, outProj)
+        x,y = transformer2.transform(y, x)
+    
     #-transform x and y coordinates to arrays
     x = np.asarray(x).ravel()
     y = np.asarray(y).ravel()
@@ -186,7 +181,12 @@ def netcdf2pcrDynamic(self, pcr, forcing): #ncFile, varName, dateInput, method, 
     filecache[getattr(self, forcing + 'NC')] = f
     
     #-get index from netcdf corresponding with current date
-    idx = int(nc.date2index(self.curdate, f.variables['time'], select ='nearest'))
+    if 'time' in f.variables:
+        time_var = f.variables['time']
+    else:
+        time_var = f.variables['date']
+    idx = int(nc.date2index(self.curdate, time_var, select='nearest'))
+    # idx = int(nc.date2index(self.curdate, f.variables['date'], select ='nearest'))
 
     #-get raw netcdf gridded data from netcdf, transform to array and multiply with factor
     if getattr(self, forcing + 'InProj') == "rotated":
