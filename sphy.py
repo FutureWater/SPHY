@@ -28,7 +28,7 @@ import pcraster as pcr
 import pcraster.framework as pcrm
 import numpy as np
 
-tic = time.clock()
+tic = time.perf_counter()
 
 # Read the model configuration file
 config = configparser.RawConfigParser()
@@ -84,6 +84,9 @@ class sphy(pcrm.DynamicModel):
 		self.outpath = config.get('DIRS', 'outputdir')
 
 		#-set the timing criteria
+		sy1 = config.getint('TIMING', 'startyear_timestep1')
+		sm1 = config.getint('TIMING', 'startmonth_timestep1')
+		sd1 = config.getint('TIMING', 'startday_timestep1')
 		sy = config.getint('TIMING', 'startyear')
 		sm = config.getint('TIMING', 'startmonth')
 		sd = config.getint('TIMING', 'startday')
@@ -92,6 +95,7 @@ class sphy(pcrm.DynamicModel):
 		ed = config.getint('TIMING', 'endday')
 		self.startdate = self.datetime.datetime(sy,sm,sd)
 		self.enddate = self.datetime.datetime(ey,em,ed)
+		self.ts1date = self.datetime.datetime(sy1,sm1,sd1)
 		self.dateAfterUpdate = self.startdate - self.datetime.timedelta(days=1)  #-only required for glacier retreat (create dummy value here to introduce the variable)
 
 		#-set date input for reporting
@@ -270,6 +274,9 @@ class sphy(pcrm.DynamicModel):
 			#-read precipitation forcing folder
 			self.Prec = self.inpath + config.get('CLIMATE','Prec')
 
+		#-read the flag for precipitation correction ##sonu added
+		self.Pcorr = config.getfloat('CLIMATE','Pcorr_fact')
+
 
 		#-read precipitation data
 		#-read flag for temperature forcing by netcdf
@@ -283,6 +290,10 @@ class sphy(pcrm.DynamicModel):
 		else:
 			#-read temperature forcing folder
 			self.Tair = self.inpath + config.get('CLIMATE','Tair')
+
+		#sonu added #-read the flag for precipitation correction ##sonu added
+		self.Tcorr = config.getfloat('CLIMATE','Tcorr_fact')
+
 		#-read flag for etref time series input
 		self.ETREF_FLAG = config.getint('ETREF','ETREF_FLAG')
 		#-determine the use of a given etref time-series or calculate etref using Hargreaves
@@ -485,7 +496,7 @@ class sphy(pcrm.DynamicModel):
 	#-initial section
 	def initial(self):
 		#-timer
-		self.counter = 0
+		self.counter = (self.startdate - self.ts1date).days
 		#-initial date
 		self.curdate = self.startdate
 
@@ -618,10 +629,20 @@ class sphy(pcrm.DynamicModel):
 		#-Read the precipitation time-series
 		if self.precNetcdfFLAG == 1:
 			#-read forcing by netcdf input
-			Precip = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Prec')
+			# added pcorrection factor
+			#pmap = pcr.readmap(self.inpath + 'bias_spline_' + self.calendar.month_abbr[self.curdate.month] + '.map') #sonu
+			pmap = pcr.readmap(self.inpath + 'pcor5.map') #sonu
+			#pcorrmap = pcr.min(pmap,self.Pcorr) ##first curtail the values greater tha pcorr
+			#pcorrmap = pcr.ifthenelse(pcorrmap <= 1.0,1.0,pcorrmap)##then make values less than 1
+			Precip = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Prec')/pmap 
 		else:
+			# added pcorrection factor
+			#pmap = pcr.readmap(self.inpath + 'bias_spline_' + self.calendar.month_abbr[self.curdate.month] + '.map') #sonu
+			pmap = pcr.readmap(self.inpath + 'pcor5.map') #walter
+			#pcorrmap = pcr.min(pmap,self.Pcorr) ##first curtail the values greater tha pcorr
+			#pcorrmap = pcr.ifthenelse(pcorrmap <= 1.0,1.0,pcorrmap)##then make values less than 1
 			#-read forcing by map input
-			Precip = pcr.readmap(pcrm.generateNameT(self.Prec, self.counter))
+			Precip = pcr.readmap(pcrm.generateNameT(self.Prec, self.counter))/pmap 
 		PrecipTot = Precip
 		#-Report Precip
 		self.reporting.reporting(self, pcr, 'TotPrec', Precip)
@@ -630,25 +651,25 @@ class sphy(pcrm.DynamicModel):
 		#-Temperature and determine reference evapotranspiration
 		if self.tempNetcdfFLAG == 1:
 			#-read forcing by netcdf input
-			Temp = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Temp')
+			Temp = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Temp')+ pcr.scalar(self.Tcorr)
 		else:
 			#-read forcing by map input
-			Temp = pcr.readmap(pcrm.generateNameT(self.Tair, self.counter))
+			Temp = pcr.readmap(pcrm.generateNameT(self.Tair, self.counter)) + pcr.scalar(self.Tcorr)
 
 		if self.ETREF_FLAG == 0:
 			if self.TminNetcdfFLAG == 1:
 				#-read forcing by netcdf input
-				TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmin')
+				TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmin')+ pcr.scalar(self.Tcorr)
 			else:
 				#-read forcing by map input
-				TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.counter))
+				TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.counter))+ pcr.scalar(self.Tcorr)
 				# TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.curdate.timetuple().tm_yday))
 			if self.TmaxNetcdfFLAG == 1:
 				#-read forcing by netcdf input
-				TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmax')
+				TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmax') + pcr.scalar(self.Tcorr)
 			else:
 				#-read forcing by map input
-				TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.counter))
+				TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.counter)) + pcr.scalar(self.Tcorr)
 				# TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.curdate.timetuple().tm_yday))
 			ETref = self.Hargreaves.Hargreaves(pcr, self.Hargreaves.extrarad(self, pcr), Temp, TempMax, TempMin)
 		else:
@@ -687,13 +708,17 @@ class sphy(pcrm.DynamicModel):
 			GlacMelt = 0
 			GlacPerc = 0
 
+		#added sonu
+		self.reporting.reporting(self, pcr, 'TotGlacRF', self.GlacR)
+
 		# Calculate snow and rain for non-glacier part of cell
 		if self.SnowFLAG == 1:
 			#-read dynamic processes snow
-			Rain, self.SnowR, OldTotalSnowStore = self.snow.dynamic(self, pcr, Temp, Precip, Snow_GLAC, ActSnowMelt_GLAC, SnowFrac, RainFrac, SnowR_GLAC)
+			Rain, self.SnowR,self.SnowSoil,OldTotalSnowStore = self.snow.dynamic(self, pcr, Temp, TempMax, Precip, Snow_GLAC, ActSnowMelt_GLAC, SnowFrac, RainFrac, SnowR_GLAC)
 		else:
 			Rain = Precip
 			self.SnowR = 0
+			self.SnowSoil  = 0 ## sonu added
 			OldTotalSnowStore = 0
 			self.TotalSnowStore = 0
 		#-Report Rain
@@ -709,7 +734,7 @@ class sphy(pcrm.DynamicModel):
 		self.reporting.reporting(self, pcr, 'TotETpotF', ETpot * RainFrac)
 
 		#-Rootzone calculations
-		self.RootWater = self.RootWater + self.CapRise
+		self.RootWater = self.RootWater + self.CapRise + self.SnowSoil ##sonu added snow infiltration
 		#-Calculate rootzone runoff
 		tempvar = self.rootzone.RootRunoff(self, pcr, RainFrac, Rain)
 		#-Rootzone runoff
@@ -959,6 +984,6 @@ for i in tssfiles:
 		os.remove(SPHY.outpath + i)
 	shutil.move(i, SPHY.outpath)
 
-toc = time.clock()
+toc = time.perf_counter()
 dt = toc - tic
 print('Simulation succesfully completed in '+str(dt)+' seconds!')

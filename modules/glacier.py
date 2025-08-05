@@ -21,6 +21,7 @@
 
 print('glacier module imported')
 
+import numpy as np
 #-Function to calculate melt from clean ice or debris covered glaciers
 def GlacCDMelt(pcr, temp, ddf, glacfrac):
     glacdmelt = pcr.max(0, temp) * ddf * glacfrac
@@ -72,8 +73,8 @@ def init(self, pcr, config, pd, np, os):
     self.ModelID_1d = self.ModelID.flatten()    #-1 dim array with model cell IDs
     SelModelID = pd.unique(self.GlacTable['MOD_ID'])  #-model id cells for which to extract temperature, precip, etc. (=cells that have glaciers)
     #-Create keys for glacier cells (index in ModelID_1d where cell has glacier)
-    self.GlacierKeys= pcr.numpy.ones(self.ModelID_1d.shape)* self.MV
-    n = pcr.numpy.arange(self.ModelID_1d.size)
+    self.GlacierKeys= np.ones(self.ModelID_1d.shape)* self.MV
+    n = np.arange(self.ModelID_1d.size)
     iCnt= 0
     for ID in SelModelID:
         if ID in self.ModelID_1d:
@@ -125,7 +126,7 @@ def initial(self, pcr, pd):
     #-Create table for accumulating glacier melt over certain period
     self.GlacTable['AccuGlacMelt'] = 0.
     #-initialize the glacier fraction
-    self.GlacFrac = pcr.numpy.zeros(self.ModelID_1d.shape)
+    self.GlacFrac = np.zeros(self.ModelID_1d.shape)
     self.GlacFrac[self.GlacierKeys] = self.GlacTable.groupby(self.GlacTable.index).sum()['FRAC_GLAC']
     self.GlacFrac = self.GlacFrac.reshape(self.ModelID.shape)
     self.GlacFrac = pcr.numpy2pcr(pcr.Scalar, self.GlacFrac, self.MV)
@@ -133,7 +134,7 @@ def initial(self, pcr, pd):
     pcr.report(self.GlacFrac, self.outpath + 'GlacFrac_' + self.curdate.strftime('%Y%m%d') + '.map')
     # 1-D Masks for debris and clean ice
     self.CImask = self.GlacTable['DEBRIS'] == 0
-    self.DBmask = pcr.numpy.invert(self.CImask)
+    self.DBmask = np.invert(self.CImask)
     #-If dynamic glacier retreat is on, then make spatial maps of initial glacier area, volume, and depth
     if self.GlacRetreat == 1:
         #-Calculate the  area and depth per model ID
@@ -142,14 +143,14 @@ def initial(self, pcr, pd):
         GlacTable_MODid['AREA'] = GlacTable_MODid['FRAC_GLAC'] * self.cellArea
         GlacTable_MODid = GlacTable_MODid.groupby(GlacTable_MODid.index).sum()
         #-Report pcraster map of glacier area
-        glacArea = pcr.numpy.zeros(self.ModelID_1d.shape)
+        glacArea = np.zeros(self.ModelID_1d.shape)
         glacArea[self.GlacierKeys] = GlacTable_MODid['AREA']
         glacArea = glacArea.reshape(self.ModelID.shape)
         glacArea = pcr.numpy2pcr(pcr.Scalar, glacArea, self.MV)
         glacArea = pcr.ifthen(self.clone, glacArea)  #-only use values where clone is True
         pcr.report(glacArea, self.outpath + 'GlacArea_' + self.curdate.strftime('%Y%m%d') + '.map')
         #-Report pcraster map of glacier depth
-        iceDepth = pcr.numpy.zeros(self.ModelID_1d.shape)
+        iceDepth = np.zeros(self.ModelID_1d.shape)
         iceDepth[self.GlacierKeys] = GlacTable_MODid['ICE_DEPTH']
         iceDepth = iceDepth.reshape(self.ModelID.shape)
         iceDepth = pcr.numpy2pcr(pcr.Scalar, iceDepth, self.MV)
@@ -182,12 +183,12 @@ def dynamic(self, pcr, pd, Temp, Precip):
     self.GlacTable['Rain_GLAC'] = 0; self.GlacTable['Snow_GLAC'] = 0;
     mask = self.GlacTable['GLAC_T'] >= self.Tcrit
     self.GlacTable.loc[mask, 'Rain_GLAC'] = self.GlacTable.loc[mask, 'Prec_GLAC']
-    self.GlacTable.loc[pcr.numpy.invert(mask), 'Snow_GLAC'] = self.GlacTable.loc[pcr.numpy.invert(mask), 'Prec_GLAC']
+    self.GlacTable.loc[np.invert(mask), 'Snow_GLAC'] = self.GlacTable.loc[np.invert(mask), 'Prec_GLAC']
     #-Set the melting temperature (=>0)
-    Tmelt = pcr.numpy.maximum(self.GlacTable['GLAC_T'], 0)
+    Tmelt = np.maximum(self.GlacTable['GLAC_T'], 0)
     #-Snow melt
     self.GlacTable['PotSnowMelt_GLAC'] = Tmelt * self.DDFS
-    self.GlacTable['ActSnowMelt_GLAC'] = pcr.numpy.minimum(self.GlacTable['SnowStore_GLAC'], self.GlacTable['PotSnowMelt_GLAC'])
+    self.GlacTable['ActSnowMelt_GLAC'] = np.minimum(self.GlacTable['SnowStore_GLAC'], self.GlacTable['PotSnowMelt_GLAC'])
     #-Update snow store
     self.GlacTable['OldSnowStore_GLAC'] = self.GlacTable['SnowStore_GLAC']
     self.GlacTable['SnowStore_GLAC'] = self.GlacTable['SnowStore_GLAC'] + self.GlacTable['Snow_GLAC'] - self.GlacTable['ActSnowMelt_GLAC']
@@ -197,7 +198,7 @@ def dynamic(self, pcr, pd, Temp, Precip):
     self.GlacTable['MaxSnowWatStore_GLAC'] = self.SnowSC * self.GlacTable['SnowStore_GLAC']
     self.GlacTable['OldSnowWatStore_GLAC'] = self.GlacTable['SnowWatStore_GLAC']
     #-Calculate the actual amount of water stored in snowwatstore
-    self.GlacTable['SnowWatStore_GLAC'] = pcr.numpy.minimum(self.GlacTable['MaxSnowWatStore_GLAC'], self.GlacTable['SnowWatStore_GLAC'] +\
+    self.GlacTable['SnowWatStore_GLAC'] = np.minimum(self.GlacTable['MaxSnowWatStore_GLAC'], self.GlacTable['SnowWatStore_GLAC'] +\
         self.GlacTable['ActSnowMelt_GLAC'] + self.GlacTable['Rain_GLAC'])
     self.GlacTable.loc[self.GlacTable['GLAC_T'] < 0., 'SnowWatStore_GLAC'] = 0
     #-Changes in total water storage in snow (SnowStore and SnowWatStore)
@@ -207,7 +208,7 @@ def dynamic(self, pcr, pd, Temp, Precip):
     mask = (self.GlacTable['SnowWatStore_GLAC'] == self.GlacTable['MaxSnowWatStore_GLAC']) & (self.GlacTable['OldSnowStore_GLAC'] > 0.) #-mask with true where SnowWatStore_GLAC == MaxSnowWatStore_GLAC
     self.GlacTable.loc[mask,'SnowR_GLAC'] = self.GlacTable.loc[mask, 'ActSnowMelt_GLAC'] + self.GlacTable.loc[mask, 'Rain_GLAC'] - \
         (self.GlacTable.loc[mask, 'SnowWatStore_GLAC'] - self.GlacTable.loc[mask, 'OldSnowWatStore_GLAC'])
-    self.GlacTable.loc[pcr.numpy.invert(mask), 'SnowR_GLAC'] = 0
+    self.GlacTable.loc[np.invert(mask), 'SnowR_GLAC'] = 0
     mask = None; del mask
 
     #-Glacier melt
@@ -217,12 +218,12 @@ def dynamic(self, pcr, pd, Temp, Precip):
     fullMelt = (self.GlacTable['OldSnowStore_GLAC'] == 0) & (self.GlacTable['SnowStore_GLAC'] == 0)
     #-Melt from Clean Ice Glaciers
     mask = (partialMelt & self.CImask)  #-mask for Clean Ice glacier and partial melt
-    self.GlacTable.loc[mask, 'GlacMelt'] = pcr.numpy.maximum(self.GlacTable.loc[mask, 'GLAC_T'] - (self.GlacTable.loc[mask, 'OldSnowStore_GLAC'] / self.DDFS), 0) * self.DDFG
+    self.GlacTable.loc[mask, 'GlacMelt'] = np.maximum(self.GlacTable.loc[mask, 'GLAC_T'] - (self.GlacTable.loc[mask, 'OldSnowStore_GLAC'] / self.DDFS), 0) * self.DDFG
     mask = (fullMelt & self.CImask)  #-mask for Clean Ice glacier and full melt
     self.GlacTable.loc[mask, 'GlacMelt'] = Tmelt.loc[mask] * self.DDFG
     #-Melt from Debris Covered Glaciers
     mask = (partialMelt & self.DBmask)  #-mask for Debris covered Glacier and partial melt
-    self.GlacTable.loc[mask, 'GlacMelt'] = pcr.numpy.maximum(self.GlacTable.loc[mask, 'GLAC_T'] - (self.GlacTable.loc[mask, 'OldSnowStore_GLAC'] / self.DDFS), 0) * self.DDFDG
+    self.GlacTable.loc[mask, 'GlacMelt'] = np.maximum(self.GlacTable.loc[mask, 'GLAC_T'] - (self.GlacTable.loc[mask, 'OldSnowStore_GLAC'] / self.DDFS), 0) * self.DDFDG
     mask = (fullMelt & self.DBmask)  #-mask for Debris covered Glacier and full melt
     self.GlacTable.loc[mask, 'GlacMelt'] = Tmelt.loc[mask] * self.DDFDG
     #-Accumulate glacier melt
@@ -234,9 +235,9 @@ def dynamic(self, pcr, pd, Temp, Precip):
     #-Glacier percolation consisting of melt and rainfall
     self.GlacTable.loc[mask, 'GlacPerc'] = (1-self.GlacF) * (self.GlacTable.loc[mask, 'GlacMelt'] + self.GlacTable.loc[mask, 'Rain_GLAC'])
     #-Glacier runoff consisting of melt only
-    self.GlacTable.loc[pcr.numpy.invert(mask), 'GlacR'] = self.GlacF * self.GlacTable.loc[pcr.numpy.invert(mask), 'GlacMelt']
+    self.GlacTable.loc[np.invert(mask), 'GlacR'] = self.GlacF * self.GlacTable.loc[np.invert(mask), 'GlacMelt']
     #-Glacier percolation consisting of melt only
-    self.GlacTable.loc[pcr.numpy.invert(mask), 'GlacPerc'] = (1-self.GlacF) * self.GlacTable.loc[pcr.numpy.invert(mask), 'GlacMelt']
+    self.GlacTable.loc[np.invert(mask), 'GlacPerc'] = (1-self.GlacF) * self.GlacTable.loc[np.invert(mask), 'GlacMelt']
     mask = None; del mask
 
     #-Aggregation for model grid ID
@@ -246,42 +247,42 @@ def dynamic(self, pcr, pd, Temp, Precip):
     GlacTable_MODid = GlacTable_MODid.groupby(GlacTable_MODid.index).sum() #-Summarize by model ID
     #-report back to model ID
     #-Rainfall on glacier
-    Rain_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+    Rain_GLAC = np.zeros(self.ModelID_1d.shape)
     Rain_GLAC[self.GlacierKeys] = GlacTable_MODid['Rain_GLAC']
     Rain_GLAC = Rain_GLAC.reshape(self.ModelID.shape)
     Rain_GLAC = pcr.numpy2pcr(pcr.Scalar, Rain_GLAC, self.MV)
     #-Snowfall on glacier
-    Snow_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+    Snow_GLAC = np.zeros(self.ModelID_1d.shape)
     Snow_GLAC[self.GlacierKeys] = GlacTable_MODid['Snow_GLAC']
     Snow_GLAC = Snow_GLAC.reshape(self.ModelID.shape)
     Snow_GLAC = pcr.numpy2pcr(pcr.Scalar, Snow_GLAC, self.MV)
     #-Act snowmelt from glacier
-    ActSnowMelt_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+    ActSnowMelt_GLAC = np.zeros(self.ModelID_1d.shape)
     ActSnowMelt_GLAC[self.GlacierKeys] = GlacTable_MODid['ActSnowMelt_GLAC']
     ActSnowMelt_GLAC = ActSnowMelt_GLAC.reshape(self.ModelID.shape)
     ActSnowMelt_GLAC = pcr.numpy2pcr(pcr.Scalar, ActSnowMelt_GLAC, self.MV)
 #             #-Snowstore on glacier
-#             SnowStore_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+#             SnowStore_GLAC = np.zeros(self.ModelID_1d.shape)
 #             SnowStore_GLAC[self.GlacierKeys] = GlacTable_MODid['SnowStore_GLAC']
 #             SnowStore_GLAC = SnowStore_GLAC.reshape(self.ModelID.shape)
 #             SnowStore_GLAC = pcr.numpy2pcr(pcr.Scalar, SnowStore_GLAC, self.MV)
 #             #-SnowWatStore on glacier
-#             SnowWatStore_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+#             SnowWatStore_GLAC = np.zeros(self.ModelID_1d.shape)
 #             SnowWatStore_GLAC[self.GlacierKeys] = GlacTable_MODid['SnowWatStore_GLAC']
 #             SnowWatStore_GLAC = SnowWatStore_GLAC.reshape(self.ModelID.shape)
 #             SnowWatStore_GLAC = pcr.numpy2pcr(pcr.Scalar, SnowWatStore_GLAC, self.MV)
     #-TotalSnowStore on glacier
-    self.TotalSnowStore_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+    self.TotalSnowStore_GLAC = np.zeros(self.ModelID_1d.shape)
     self.TotalSnowStore_GLAC[self.GlacierKeys] = GlacTable_MODid['TotalSnowStore_GLAC']
     self.TotalSnowStore_GLAC = self.TotalSnowStore_GLAC.reshape(self.ModelID.shape)
     self.TotalSnowStore_GLAC = pcr.numpy2pcr(pcr.Scalar, self.TotalSnowStore_GLAC, self.MV)
     #-SnowR from glacier
-    SnowR_GLAC = pcr.numpy.zeros(self.ModelID_1d.shape)
+    SnowR_GLAC = np.zeros(self.ModelID_1d.shape)
     SnowR_GLAC[self.GlacierKeys] = GlacTable_MODid['SnowR_GLAC']
     SnowR_GLAC = SnowR_GLAC.reshape(self.ModelID.shape)
     SnowR_GLAC = pcr.numpy2pcr(pcr.Scalar, SnowR_GLAC, self.MV)
     #-Glacier melt
-    GlacMelt = pcr.numpy.zeros(self.ModelID_1d.shape)
+    GlacMelt = np.zeros(self.ModelID_1d.shape)
     GlacMelt[self.GlacierKeys] = GlacTable_MODid['GlacMelt']
     GlacMelt = GlacMelt.reshape(self.ModelID.shape)
     GlacMelt = pcr.numpy2pcr(pcr.Scalar, GlacMelt, self.MV)
@@ -290,7 +291,7 @@ def dynamic(self, pcr, pd, Temp, Precip):
     if self.mm_rep_FLAG == 1 and (self.RoutFLAG == 1 or self.ResFLAG == 1 or self.LakeFLAG == 1):
         self.GMeltSubBasinTSS.sample(pcr.catchmenttotal(GlacMelt, self.FlowDir) / pcr.catchmenttotal(1, self.FlowDir))
     #-Glacier runoff
-    GlacR = pcr.numpy.zeros(self.ModelID_1d.shape)
+    GlacR = np.zeros(self.ModelID_1d.shape)
     GlacR[self.GlacierKeys] = GlacTable_MODid['GlacR']
     GlacR = GlacR.reshape(self.ModelID.shape)
     GlacR = pcr.numpy2pcr(pcr.Scalar, GlacR, self.MV)
@@ -298,7 +299,7 @@ def dynamic(self, pcr, pd, Temp, Precip):
     #-Report glacier runoff
     self.reporting.reporting(self, pcr, 'TotGlacR', GlacR)
     #-Glacier percolation
-    GlacPerc = pcr.numpy.zeros(self.ModelID_1d.shape)
+    GlacPerc = np.zeros(self.ModelID_1d.shape)
     GlacPerc[self.GlacierKeys] = GlacTable_MODid['GlacPerc']
     GlacPerc = GlacPerc.reshape(self.ModelID.shape)
     GlacPerc = pcr.numpy2pcr(pcr.Scalar, GlacPerc, self.MV)
@@ -327,7 +328,7 @@ def dynamic_reporting(self, pcr, pd, np):
         #-Fill Glacier variable tables for reporting
         if self.GlacID_memerror == 0:
             for v in self.GlacVars:
-                vv = getattr(self, v + '_Table'); vv.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:]
+                vv = getattr(self, v + '_Table'); vv.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:].astype(np.float32)
             v = None; vv = None; del v, vv; GlacTable_GLACid = None; del GlacTable_GLACid
             if self.curdate == self.enddate: #-do the reporting at the final model time-step
                 for v in self.GlacVars:
@@ -336,7 +337,7 @@ def dynamic_reporting(self, pcr, pd, np):
             df = pd.DataFrame(columns=self.glacid, dtype=np.float32)
             for v in self.GlacVars:
                 #df = pd.DataFrame(columns=self.glacid, dtype=float)
-                df.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:]
+                df.loc[self.curdate,:] = GlacTable_GLACid.loc[v,:].astype(np.float32)
                 if self.curdate == self.startdate:
                     df.to_csv(self.outpath + v + '.csv', mode='w')
                 else:
@@ -362,7 +363,7 @@ def dynamic_reporting(self, pcr, pd, np):
         #-Set the ablation and accumulation in the corresponding fields
         GlacFracTable['Accumulation'] = 0.
         GlacFracTable['Ablation'] = 0.
-        GlacFracTable.loc[pcr.numpy.invert(ablMask),'Accumulation'] = GlacFracTable.loc[pcr.numpy.invert(ablMask), 'dMelt']
+        GlacFracTable.loc[np.invert(ablMask),'Accumulation'] = GlacFracTable.loc[np.invert(ablMask), 'dMelt']
         GlacFracTable.loc[ablMask,'Ablation'] = GlacFracTable.loc[ablMask, 'dMelt']
         #-Set the ice volumes for the ablation UIDs
         GlacFracTable['V_ice_ablation'] = 0.
@@ -398,8 +399,8 @@ def dynamic_reporting(self, pcr, pd, np):
         GlacFracTable.drop(['dMelt', 'Accumulation', 'Ablation','V_ice_ablation','dMelt_group',\
                 'Accumulation_group', 'V_ice_ablation_group', 'Ice_redist'], axis=1, inplace=True)
         #-Calculate where updated ice volume becomes negative and postitive
-        GlacFracTable['V_ice_negative'] = pcr.numpy.minimum(0., GlacFracTable['V_ice_t1'])
-        GlacFracTable['V_ice_positive'] = pcr.numpy.maximum(0., GlacFracTable['V_ice_t1'])
+        GlacFracTable['V_ice_negative'] = np.minimum(0., GlacFracTable['V_ice_t1'])
+        GlacFracTable['V_ice_positive'] = np.maximum(0., GlacFracTable['V_ice_t1'])
         #-Calculate totals per Glacier ID
         GlacID_grouped = GlacFracTable.groupby('GLAC_ID').sum()
         GlacID_grouped = GlacID_grouped.loc[:,['V_ice_negative', 'V_ice_positive']]
@@ -416,7 +417,7 @@ def dynamic_reporting(self, pcr, pd, np):
         #-Remove unnecessary columns
         GlacFracTable.drop(['V_ice_negative', 'V_ice_positive', 'V_ice_negative_group', 'V_ice_positive_group'], axis=1, inplace=True)
         #-Update ice volume
-        GlacFracTable['V_ice_t2'] = pcr.numpy.maximum(0., GlacFracTable['V_ice_t1'] + GlacFracTable['Ice_redist'])
+        GlacFracTable['V_ice_t2'] = np.maximum(0., GlacFracTable['V_ice_t1'] + GlacFracTable['Ice_redist'])
         #-Update ice thickness
         GlacFracTable['ICE_DEPTH_new'] = GlacFracTable['V_ice_t2'] / (GlacFracTable['FRAC_GLAC'] * self.cellArea)
         noIceMask = (GlacFracTable['ICE_DEPTH_new'] <=0.)  # it can be that melt is greater than total available ice: that results in balance error
@@ -456,7 +457,7 @@ def dynamic_reporting(self, pcr, pd, np):
         GlacTable_MODid.fillna(0., inplace=True)
 
         #-Report updated glacier fraction map
-        self.GlacFrac = pcr.numpy.zeros(self.ModelID_1d.shape)
+        self.GlacFrac = np.zeros(self.ModelID_1d.shape)
         self.GlacFrac[self.GlacierKeys] = GlacTable_MODid['FRAC_GLAC']
         self.GlacFrac = self.GlacFrac.reshape(self.ModelID.shape)
         self.GlacFrac = pcr.numpy2pcr(pcr.Scalar, self.GlacFrac, self.MV)
@@ -464,14 +465,14 @@ def dynamic_reporting(self, pcr, pd, np):
         pcr.report(self.GlacFrac, self.outpath + 'GlacFrac_' + self.curdate.strftime('%Y%m%d') + '.map')
 
         #-Report pcraster map of glacier area
-        glacArea = pcr.numpy.zeros(self.ModelID_1d.shape)
+        glacArea = np.zeros(self.ModelID_1d.shape)
         glacArea[self.GlacierKeys] = GlacTable_MODid['AREA']
         glacArea = glacArea.reshape(self.ModelID.shape)
         glacArea = pcr.numpy2pcr(pcr.Scalar, glacArea, self.MV)
         glacArea = pcr.ifthen(self.clone, glacArea)  #-only use values where clone is True
         pcr.report(glacArea, self.outpath + 'GlacArea_' + self.curdate.strftime('%Y%m%d') + '.map')
         #-Report pcraster map of glacier depth
-        iceDepth = pcr.numpy.zeros(self.ModelID_1d.shape)
+        iceDepth = np.zeros(self.ModelID_1d.shape)
         iceDepth[self.GlacierKeys] = GlacTable_MODid['ICE_DEPTH']
         iceDepth = iceDepth.reshape(self.ModelID.shape)
         iceDepth = pcr.numpy2pcr(pcr.Scalar, iceDepth, self.MV)
