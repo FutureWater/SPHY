@@ -4,7 +4,7 @@
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
-# P. Droogers, J. Eekhout, A. Fernandez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
+# P. Droogers, J. Eekhout, A. Fernandez-Rodriguez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,13 +22,8 @@
 
 print("snow module imported")
 
+
 # -Function to calculate the potential snow melt
-# def PotSnowMelt(pcr, temp, ddfs):
-#     melt = pcr.max(0, temp) * ddfs
-#     return melt
-
-
-# -Function to calculate the potential snow melt sonu added
 def PotSnowMelt(pcr, temp, tempmax, ddfs):
     thour = pcr.scalar(0)
     for ij in range(1, 25, 1):
@@ -36,9 +31,6 @@ def PotSnowMelt(pcr, temp, tempmax, ddfs):
         thour = thour + th_max
     melt = thour * ddfs / 24
     return melt
-
-
-# -Function to calculate the potential snow melt sonu added
 
 
 # -Function to calculate the actual snow melt

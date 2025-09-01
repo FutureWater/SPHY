@@ -4,7 +4,7 @@
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
-# P. Droogers, J. Eekhout, A. Fernandez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
+# P. Droogers, J. Eekhout, A. Fernandez-Rodriguez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

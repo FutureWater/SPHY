@@ -4,7 +4,7 @@
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
-# P. Droogers, J. Eekhout, A. Fernandez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
+# P. Droogers, J. Eekhout, A. Fernandez-Rodriguez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -74,9 +74,10 @@ def init(self, pcr, config, pd, np, os):
             "GlacMelt",
             "GlacR",
             "GlacPerc",
-        ]
+        ],
+        dtype=float,
     )
-    self.GlacTable = pd.concat([self.GlacTable, cols], axis=1).fillna(0)
+    self.GlacTable = pd.concat([self.GlacTable, cols], axis=1).fillna(0.0)
     # -sort on MOD_ID column
     self.GlacTable.sort_values(by="MOD_ID", inplace=True)
     # -read GlacID flag
@@ -140,6 +141,7 @@ def init(self, pcr, config, pd, np, os):
         sep=" ",
         skipinitialspace=True,
     )
+    self.TLapse = self.TLapse_table.iloc[:, 0].astype(float)
     # -Map with glacier IDs
     self.GlacID = pcr.readmap(self.inpath + config.get("GLACIER", "GlacID"))
     # -Check if glacier retreat should be calculated
@@ -263,9 +265,11 @@ def dynamic(self, pcr, pd, Temp, Precip):
     T_1d = None
     del T, T_1d
     # -lapse temperature for glaciers
-    self.GlacTable["GLAC_T"] = self.GlacTable["MOD_T"] - (
-        self.GlacTable["MOD_H"] - self.GlacTable["GLAC_H"]
-    ) * float(self.TLapse_table.loc[self.curdate.month])
+    lapse = self.TLapse.at[self.curdate.month]  # scalar float, no deprecation
+    self.GlacTable["GLAC_T"] = (
+        self.GlacTable["MOD_T"]
+        - (self.GlacTable["MOD_H"] - self.GlacTable["GLAC_H"]) * lapse
+    )
     # -1 dim array of Precip map
     P_1d = pcr.pcr2numpy(Precip, self.MV).flatten()
     P = pd.DataFrame(
@@ -278,8 +282,6 @@ def dynamic(self, pcr, pd, Temp, Precip):
     P_1d = None
     del P, P_1d
     # -Snow and rain differentiation
-    self.GlacTable["Rain_GLAC"] = 0
-    self.GlacTable["Snow_GLAC"] = 0
     mask = self.GlacTable["GLAC_T"] >= self.Tcrit
     self.GlacTable.loc[mask, "Rain_GLAC"] = self.GlacTable.loc[mask, "Prec_GLAC"]
     self.GlacTable.loc[np.invert(mask), "Snow_GLAC"] = self.GlacTable.loc[
@@ -522,7 +524,7 @@ def dynamic_reporting(self, pcr, pd, np):
         GlacTable_GLACid = (
             GlacTable_GLACid.transpose()
         )  # -Transpose the glacier id table (ID as columns and vars as index)
-        GlacTable_GLACid.fillna(0.0, inplace=True)
+        GlacTable_GLACid = GlacTable_GLACid.fillna(0.0)
 
         # -Fill Glacier variable tables for reporting
         if self.GlacID_memerror == 0:
@@ -565,7 +567,8 @@ def dynamic_reporting(self, pcr, pd, np):
         # -Create a table with fields used for updating the glacier fraction at defined update date
         GlacFracTable = self.GlacTable.loc[
             :, ["U_ID", "GLAC_ID", "FRAC_GLAC", "ICE_DEPTH"]
-        ]
+        ].copy()
+
         # -Set the initial ice volumes and snow store
         GlacFracTable["V_ice_t0"] = (
             GlacFracTable["FRAC_GLAC"] * GlacFracTable["ICE_DEPTH"] * self.cellArea
@@ -579,8 +582,8 @@ def dynamic_reporting(self, pcr, pd, np):
             GlacFracTable["dMelt"] / 1000 * GlacFracTable["FRAC_GLAC"] * self.cellArea
         )  # -convert to m3
         # -Drop unnecessary columns
-        GlacFracTable.drop(
-            ["TotalSnowStore_GLAC", "AccuGlacMelt"], axis=1, inplace=True
+        GlacFracTable = GlacFracTable.drop(
+            ["TotalSnowStore_GLAC", "AccuGlacMelt"], axis=1
         )
 
         # -Mask to determine ablation and accumulation UIDs
@@ -651,7 +654,7 @@ def dynamic_reporting(self, pcr, pd, np):
         posDistMask = None
         del posDistMask
         # -Remove unnecessary columns
-        GlacFracTable.drop(
+        GlacFracTable = GlacFracTable.drop(
             [
                 "dMelt",
                 "Accumulation",
@@ -663,7 +666,6 @@ def dynamic_reporting(self, pcr, pd, np):
                 "Ice_redist",
             ],
             axis=1,
-            inplace=True,
         )
         # -Calculate where updated ice volume becomes negative and postitive
         GlacFracTable["V_ice_negative"] = np.minimum(0.0, GlacFracTable["V_ice_t1"])
@@ -689,9 +691,9 @@ def dynamic_reporting(self, pcr, pd, np):
             / GlacFracTable["V_ice_positive_group"]
             * GlacFracTable["V_ice_negative_group"]
         )
-        GlacFracTable["Ice_redist"].fillna(0.0, inplace=True)
+        GlacFracTable["Ice_redist"] = GlacFracTable["Ice_redist"].fillna(0.0)
         # -Remove unnecessary columns
-        GlacFracTable.drop(
+        GlacFracTable = GlacFracTable.drop(
             [
                 "V_ice_negative",
                 "V_ice_positive",
@@ -699,7 +701,6 @@ def dynamic_reporting(self, pcr, pd, np):
                 "V_ice_positive_group",
             ],
             axis=1,
-            inplace=True,
         )
         # -Update ice volume
         GlacFracTable["V_ice_t2"] = np.maximum(
