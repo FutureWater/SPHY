@@ -4,7 +4,7 @@
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
-# P. Droogers, J. Eekhout, W. Immerzeel, S. Khanal, A. Lutz, G. Simons, W. Terink, A. Fernandez, T. Schults
+# P. Droogers, J. Eekhout, A. Fernandez-Rodriguez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ class sphy(pcrm.DynamicModel):
         # Print model info
         print("The Spatial Processes in HYdrology (SPHY) model is")
         print("developed and owned by FutureWater, Wageningen, The Netherlands")
-        print("Version 3.0, released June 2019")
+        print("Version 3.1, released September 2025")
         print(" ")
 
         # Missing value definition
@@ -736,19 +736,27 @@ class sphy(pcrm.DynamicModel):
         try:
             self.Pcorr_fact = config.getfloat("CLIMATE", "Pcorr_fact")
         except:
-            self.Pcorr_fact = pcr.readmap(self.inpath + config.get("CLIMATE", "Pcorr_fact"))
-        
+            self.Pcorr_fact = pcr.readmap(
+                self.inpath + config.get("CLIMATE", "Pcorr_fact")
+            )
+
         # -Read the precipitation time-series
         if self.precNetcdfFLAG == 1:
-                  
+
             # -read forcing by netcdf input
-            Precip = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, "Prec") / self.Pcorr_fact
-    
+            Precip = (
+                self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, "Prec")
+                / self.Pcorr_fact
+            )
+
         else:
-		
+
             # -read forcing by map input
-            Precip = pcr.readmap(pcrm.generateNameT(self.Prec, self.counter)) / self.Pcorr_fact
-        
+            Precip = (
+                pcr.readmap(pcrm.generateNameT(self.Prec, self.counter))
+                / self.Pcorr_fact
+            )
+
         PrecipTot = Precip
         # -Report Precip
         self.reporting.reporting(self, pcr, "TotPrec", Precip)
@@ -758,7 +766,9 @@ class sphy(pcrm.DynamicModel):
         try:
             self.Tcorr_fact = config.getfloat("CLIMATE", "Tcorr_fact")
         except:
-            self.Tcorr_fact = pcr.readmap(self.inpath + config.get("CLIMATE", "tcorr_fact"))
+            self.Tcorr_fact = pcr.readmap(
+                self.inpath + config.get("CLIMATE", "tcorr_fact")
+            )
 
         # -Temperature and determine reference evapotranspiration
         if self.tempNetcdfFLAG == 1:
@@ -767,10 +777,9 @@ class sphy(pcrm.DynamicModel):
             Temp = self.netcdf2PCraster.netcdf2pcrDynamic(
                 self, pcr, "Temp"
             ) + pcr.scalar(self.Tcorr_fact)
-        
+
         else:
-            
-            
+
             # -read forcing by map input
             Temp = pcr.readmap(
                 pcrm.generateNameT(self.Tair, self.counter)
