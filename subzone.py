@@ -1,10 +1,10 @@
 # The Spatial Processes in HYdrology (SPHY) model:
-# A spatially distributed hydrological model 
-# Copyright (C) 2013-2019  FutureWater
+# A spatially distributed hydrological model
+# Copyright (C) 2013-2025  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
-# P. Droogers, J. Eekhout, W. Immerzeel, S. Khanal, A. Lutz, G. Simons, W. Terink
+# P. Droogers, J. Eekhout, A. Fernandez, W. Immerzeel, S. Khanal, A. Lutz, T. Schults, G. Simons, W. Terink.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,20 +19,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#-Function to calculate capillary rise
+
+# -Function to calculate capillary rise
 def CapilRise(pcr, subfield, subwater, capmax, rootwater, rootsat, rootfield):
     subrelwat = pcr.max(pcr.min((subwater / subfield), 1), 0)
     rootrelwat = pcr.max(pcr.min((rootwater / rootfield), 1), 0)
     caprise = pcr.min(subwater, capmax * (1 - rootrelwat) * subrelwat)
-    caprise = pcr.min(caprise, rootsat - rootwater)  # adding caprise can not exceed saturated rootwater content
+    caprise = pcr.min(
+        caprise, rootsat - rootwater
+    )  # adding caprise can not exceed saturated rootwater content
     return caprise
 
-#-Function to calculate percolation from subsoil (only if groundwater module is used)
+
+# -Function to calculate percolation from subsoil (only if groundwater module is used)
 def SubPercolation(pcr, subwater, subfield, subTT, gw, gwsat):
-    subperc =  pcr.ifthenelse((gw < gwsat) & ((subwater - subfield) > 0), (subwater - subfield) * (1 - pcr.exp(-1 / subTT)), 0)
+    subperc = pcr.ifthenelse(
+        (gw < gwsat) & ((subwater - subfield) > 0),
+        (subwater - subfield) * (1 - pcr.exp(-1 / subTT)),
+        0,
+    )
     return subperc
 
-#-Function to calculate drainage from subsoil (only if groundwater module is NOT used)
+
+# -Function to calculate drainage from subsoil (only if groundwater module is NOT used)
 def SubDrainage(pcr, subwater, subfield, subsat, drainvel, subdrainage, subTT):
     subexcess = pcr.max(subwater - subfield, 0)
     subexcessfrac = subexcess / (subsat - subfield)
