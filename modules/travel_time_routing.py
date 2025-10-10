@@ -229,8 +229,8 @@ def init(self, pcr, pcrm, config, np):
             if (self.cellsPathChannel < self.channelSmooth):
                 self.subPathChannel = self.pathChannel
             else:
-                self.subPathChannel = pcr.rounddown(self.accufluxPath / ((self.cellsPathChannel + 1) / np.around(self.cellsPathChannel / self.channelSmooth)))
-
+                self.subPathChannel = pcr.rounddown(self.accufluxPath / ((self.cellsPathChannel + 1) / pcr.rounddown(self.cellsPathChannel / pcr.scalar(self.channelSmooth))))
+            
             #-determine average slope in segment
             self.pathChannelSlope = pcr.areaaverage(self.Slope, pcr.nominal(self.subPathChannel))
 
