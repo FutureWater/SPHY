@@ -53,11 +53,11 @@ def QRes(self, pcr):
 
 #-init processes reservoirs
 def init(self, pcr, config):
-    #-set the option to calculate the reservoir inflow, outflow and storage per component
-    pars = ['RootR','RootD','Rain','Snow','Glac','Base']
-    for i in pars:
-        var = 'Rep' + i + '_FLAG'
-        setattr(self, var, config.getint('REPORTING', var))
+    # #-set the option to calculate the reservoir inflow, outflow and storage per component
+    # pars = ['RootR','RootD','Rain','Snow','Glac','Base']
+    # for i in pars:
+    #     var = 'Rep' + i + '_FLAG'
+    #     setattr(self, var, config.getint('REPORTING', var))
 
     pcr.setglobaloption('matrixtable')
     # nominal map with reservoir IDs
@@ -112,10 +112,11 @@ def initial_reporting(self, pcr, pcrm):
     self.ResStorTSS = pcrm.TimeoutputTimeseries("ResStorTSS", self, self.ResID, noHeader=True)
     self.ResETaTSS = pcrm.TimeoutputTimeseries("ResETaTSS", self, self.ResID, noHeader=True)
     self.ResInCalTSS = pcrm.TimeoutputTimeseries("ResInCalTSS", self, self.ResID, noHeader=True)
-    #-set reporting of water balances for individual components
-    pars = ['RootR','RootD','Rain','Snow','Glac','Base']
-    for i in pars:
-        if eval('self.' + i + 'RA_FLAG') and getattr(self, 'Rep' + i + '_FLAG'):
-            setattr(self, 'Res' + i + 'InTSS', pcrm.TimeoutputTimeseries('Res' + i + 'InTSS', self, self.ResID, noHeader=True))
-            setattr(self, 'Res' + i + 'OutTSS', pcrm.TimeoutputTimeseries('Res' + i + 'OutTSS', self, self.ResID, noHeader=True))
-            setattr(self, 'Res' + i + 'StorTSS', pcrm.TimeoutputTimeseries('Res' + i + 'StorTSS', self, self.ResID, noHeader=True))
+    
+    # #-set reporting of water balances for individual components
+    # pars = ['RootR','RootD','Rain','Snow','Glac','Base']
+    # for i in pars:
+    #     if eval('self.' + i + 'RA_FLAG') and getattr(self, 'Rep' + i + '_FLAG'):
+    #         setattr(self, 'Res' + i + 'InTSS', pcrm.TimeoutputTimeseries('Res' + i + 'InTSS', self, self.ResID, noHeader=True))
+    #         setattr(self, 'Res' + i + 'OutTSS', pcrm.TimeoutputTimeseries('Res' + i + 'OutTSS', self, self.ResID, noHeader=True))
+    #         setattr(self, 'Res' + i + 'StorTSS', pcrm.TimeoutputTimeseries('Res' + i + 'StorTSS', self, self.ResID, noHeader=True))

@@ -52,46 +52,46 @@ def initial(self, pcr, config):
             self.QRAold = pcr.readmap(self.inpath + config.get('ROUT_INIT','QRA_init'))
         except:
             self.QRAold = 0
-    #-initial routed runoff	for the individual components
-    pars = ['RootR', 'RootD', 'Rain', 'Snow', 'Glac', 'Base']
-    for i in pars:
-        try:
-            setattr(self, i + 'RAold', pcr.readmap(self.inpath + config.get('ROUT_INIT', i + 'RA_init')))
-            setattr(self, i + 'RA_FLAG', True)
-        except:
-            try:
-                setattr(self, i + 'RAold', config.getfloat('ROUT_INIT', i + 'RA_init'))
-                setattr(self, i + 'RA_FLAG', True)
-            except:
-                setattr(self, i + 'RA_FLAG', False)
+    # #-initial routed runoff	for the individual components
+    # pars = ['RootR', 'RootD', 'Rain', 'Snow', 'Glac', 'Base']
+    # for i in pars:
+    #     try:
+    #         setattr(self, i + 'RAold', pcr.readmap(self.inpath + config.get('ROUT_INIT', i + 'RA_init')))
+    #         setattr(self, i + 'RA_FLAG', True)
+    #     except:
+    #         try:
+    #             setattr(self, i + 'RAold', config.getfloat('ROUT_INIT', i + 'RA_init'))
+    #             setattr(self, i + 'RA_FLAG', True)
+    #         except:
+    #             setattr(self, i + 'RA_FLAG', False)
 
-    #-initial storage in lakes/reservoirs of individual flow components
-    pars = ['RootRRA','RootDRA','RainRA','SnowRA','GlacRA','BaseRA']
-    for i in pars:
-        column = pars.index(i)  # identify column to be read from lake or reservoir table
-        try: #-try to sum the storages read from the lake and reservoir tables if both thse modules are used
-            setattr(self, i + 'stor', (pcr.cover(pcr.lookupscalar(LakeStor_Tab, column + 2, self.LakeID), 0) + \
-                                    pcr.cover(pcr.lookupscalar(ResStor_Tab, column + 3, self.ResID), 0)) * 10**6)
-            if eval('self.' + i + '_FLAG'):
-                setattr(self, i + '_FLAG', True)
-            else:
-                setattr(self, i + '_FLAG', False)
-        except:
-            try: #-try to read the storages from the lake table
-                setattr(self, i + 'stor', pcr.cover(pcr.lookupscalar(LakeStor_Tab, column + 2, self.LakeID), 0) * 10**6)
-                if eval('self.' + i + '_FLAG'):
-                    setattr(self, i + '_FLAG', True)
-                else:
-                    setattr(self, i + '_FLAG', False)
-            except: #-try to read the storages from the reservoir table
-                try:
-                    setattr(self, i + 'stor', pcr.cover(pcr.lookupscalar(ResStor_Tab, column + 3, self.ResID), 0) * 10**6)
-                    if eval('self.' + i + '_FLAG'):
-                        setattr(self, i + '_FLAG', True)
-                    else:
-                        setattr(self, i + '_FLAG', False)
-                except:
-                    setattr(self, i + '_FLAG', False)
+    # #-initial storage in lakes/reservoirs of individual flow components
+    # pars = ['RootRRA','RootDRA','RainRA','SnowRA','GlacRA','BaseRA']
+    # for i in pars:
+    #     column = pars.index(i)  # identify column to be read from lake or reservoir table
+    #     try: #-try to sum the storages read from the lake and reservoir tables if both thse modules are used
+    #         setattr(self, i + 'stor', (pcr.cover(pcr.lookupscalar(LakeStor_Tab, column + 2, self.LakeID), 0) + \
+    #                                 pcr.cover(pcr.lookupscalar(ResStor_Tab, column + 3, self.ResID), 0)) * 10**6)
+    #         if eval('self.' + i + '_FLAG'):
+    #             setattr(self, i + '_FLAG', True)
+    #         else:
+    #             setattr(self, i + '_FLAG', False)
+    #     except:
+    #         try: #-try to read the storages from the lake table
+    #             setattr(self, i + 'stor', pcr.cover(pcr.lookupscalar(LakeStor_Tab, column + 2, self.LakeID), 0) * 10**6)
+    #             if eval('self.' + i + '_FLAG'):
+    #                 setattr(self, i + '_FLAG', True)
+    #             else:
+    #                 setattr(self, i + '_FLAG', False)
+    #         except: #-try to read the storages from the reservoir table
+    #             try:
+    #                 setattr(self, i + 'stor', pcr.cover(pcr.lookupscalar(ResStor_Tab, column + 3, self.ResID), 0) * 10**6)
+    #                 if eval('self.' + i + '_FLAG'):
+    #                     setattr(self, i + '_FLAG', True)
+    #                 else:
+    #                     setattr(self, i + '_FLAG', False)
+    #             except:
+    #                 setattr(self, i + '_FLAG', False)
 
 #-dynamic processes advanced routing
 def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
@@ -144,6 +144,13 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
 
         #-Determine flow velocity (m/s), water depth (m) and resulting discharge (m3/s) through iteration
         Q, u, hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
+        self.reporting.reporting(self, pcr, 'FlowV', u)
+        self.reporting.reporting(self, pcr, 'HydraulicRadius', hydraulicRadius)
+        self.reporting.reporting(self, pcr, 'WaterDepth', self.waterDepth)
+
+        #-Update inundation frequency
+        self.inundationFrequency = pcr.ifthenelse(self.waterDepth > (self.channelDepth + self.inundationThreshold), pcr.scalar(1), pcr.scalar(0))
+        self.reporting.reporting(self, pcr, 'InundationFreq', self.inundationFrequency)
 
         #-store flow velocity
         self.flowVelocity = u
@@ -189,99 +196,99 @@ def dynamic(self, pcr, pcrm, config, TotR, ETOpenWater, PrecipTot):
             self.ResETaTSS.sample(ETaRES)
             self.ResInCalTSS.sample(Qin - ETaRES)
 
-    #-Routing of individual contributers
-    #-Snow routing
-    if self.SnowRA_FLAG == 1 and self.SnowFLAG == 1:
-        self.SnowRAstor = self.SnowRAstor + pcr.ifthenelse(self.QFRAC==0, SnowR * 0.001 * pcr.cellarea(), 0)
-        cQfrac = pcr.cover(self.SnowRAstor / OldStorage, 0)
-        cQout = cQfrac * Qout
-        cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * SnowR)
-        tempvar = self.advanced_routing.ROUT(self, pcr, cRunoffVolume, self.SnowRAold, cQout, self.SnowRAstor)
-        self.SnowRAstor = tempvar[0]
-        SnowRA = tempvar[1]
-        cQin = tempvar[2]
-        self.SnowRAold = SnowRA
-        self.reporting.reporting(self, pcr, 'SnowRAtot', SnowRA)
-        if self.mm_rep_FLAG == 1 and self.QSNOW_mm_FLAG == 1:
-            self.QSNOWSubBasinTSS.sample(((SnowRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
-        #-report lake and reservoir waterbalance
-        if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
-            self.LakeSnowInTSS.sample(cQin)
-            self.LakeSnowOutTSS.sample(cQout)
-            self.LakeSnowStorTSS.sample(self.SnowRAstor)
-        if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
-            self.ResSnowInTSS.sample(cQin)
-            self.ResSnowOutTSS.sample(cQout)
-            self.ResSnowStorTSS.sample(self.SnowRAstor)
-    #-Rain routing
-    if self.RainRA_FLAG == 1:
-        self.RainRAstor = self.RainRAstor + pcr.ifthenelse(self.QFRAC==0, RainR * 0.001 * pcr.cellarea(), 0)
-        cQfrac = pcr.cover(self.RainRAstor / OldStorage, 0)
-        cQout = cQfrac * Qout
-        cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * RainR)
-        tempvar = self.advanced_routing.ROUT(self, pcr, cRunoffVolume, self.RainRAold, cQout, self.RainRAstor)
-        self.RainRAstor = tempvar[0]
-        RainRA = tempvar[1]
-        cQin = tempvar[2]
-        self.RainRAold = RainRA
-        self.reporting.reporting(self, pcr, 'RainRAtot', RainRA)
-        if self.mm_rep_FLAG == 1 and self.QRAIN_mm_FLAG == 1:
-            self.QRAINSubBasinTSS.sample(((RainRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
-        #-report lake and reservoir waterbalance
-        if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
-            self.LakeRainInTSS.sample(cQin)
-            self.LakeRainOutTSS.sample(cQout)
-            self.LakeRainStorTSS.sample(self.RainRAstor)
-        if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
-            self.ResRainInTSS.sample(cQin)
-            self.ResRainOutTSS.sample(cQout)
-            self.ResRainStorTSS.sample(self.RainRAstor)
-    #-Glacier routing
-    if self.GlacRA_FLAG == 1 and self.GlacFLAG == 1:
-        self.GlacRAstor = self.GlacRAstor + pcr.ifthenelse(self.QFRAC==0, GlacR * 0.001 * pcr.cellarea(), 0)
-        cQfrac = pcr.cover(self.GlacRAstor / OldStorage, 0)
-        cQout = cQfrac * Qout
-        cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * GlacR)
-        tempvar = self.advanced_routing.ROUT(self, pcr, cRunoffVolume, self.GlacRAold, cQout, self.GlacRAstor)
-        self.GlacRAstor = tempvar[0]
-        GlacRA = tempvar[1]
-        cQin = tempvar[2]
-        self.GlacRAold = GlacRA
-        self.reporting.reporting(self, pcr, 'GlacRAtot', GlacRA)
-        if self.mm_rep_FLAG == 1 and self.QGLAC_mm_FLAG == 1:
-            self.QGLACSubBasinTSS.sample(((GlacRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
-        #-report lake and reservoir waterbalance
-        if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
-            self.LakeGlacInTSS.sample(cQin)
-            self.LakeGlacOutTSS.sample(cQout)
-            self.LakeGlacStorTSS.sample(self.GlacRAstor)
-        if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
-            self.ResGlacInTSS.sample(cQin)
-            self.ResGlacOutTSS.sample(cQout)
-            self.ResGlacStorTSS.sample(self.GlacRAstor)
-    #-Baseflow routing
-    if self.BaseRA_FLAG == 1:
-        self.BaseRAstor = self.BaseRAstor + pcr.ifthenelse(self.QFRAC==0, self.BaseR * 0.001 * pcr.cellarea(), 0)
-        cQfrac = pcr.cover(self.BaseRAstor / OldStorage, 0)
-        cQout = cQfrac * Qout
-        cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * self.BaseR)
-        tempvar = self.routing.ROUT(self, pcr, cRunoffVolume, self.BaseRAold, cQout, self.BaseRAstor)
-        self.BaseRAstor = tempvar[0]
-        BaseRA = tempvar[1]
-        cQin = tempvar[2]
-        self.BaseRAold = BaseRA
-        self.reporting.reporting(self, pcr, 'BaseRAtot', BaseRA)
-        if self.mm_rep_FLAG == 1 and self.QBASE_mm_FLAG == 1:
-            self.QBASESubBasinTSS.sample(((BaseRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
-        #-report lake and reservoir waterbalance
-        if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
-            self.LakeBaseInTSS.sample(cQin)
-            self.LakeBaseOutTSS.sample(cQout)
-            self.LakeBaseStorTSS.sample(self.BaseRAstor)
-        if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
-            self.ResBaseInTSS.sample(cQin)
-            self.ResBaseOutTSS.sample(cQout)
-            self.ResBaseStorTSS.sample(self.BaseRAstor)
+    # #-Routing of individual contributers
+    # #-Snow routing
+    # if self.SnowRA_FLAG == 1 and self.SnowFLAG == 1:
+    #     self.SnowRAstor = self.SnowRAstor + pcr.ifthenelse(self.QFRAC==0, SnowR * 0.001 * pcr.cellarea(), 0)
+    #     cQfrac = pcr.cover(self.SnowRAstor / OldStorage, 0)
+    #     cQout = cQfrac * Qout
+    #     cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * SnowR)
+    #     tempvar = self.advanced_routing.ROUT(self, pcr, cRunoffVolume, self.SnowRAold, cQout, self.SnowRAstor)
+    #     self.SnowRAstor = tempvar[0]
+    #     SnowRA = tempvar[1]
+    #     cQin = tempvar[2]
+    #     self.SnowRAold = SnowRA
+    #     self.reporting.reporting(self, pcr, 'SnowRAtot', SnowRA)
+    #     if self.mm_rep_FLAG == 1 and self.QSNOW_mm_FLAG == 1:
+    #         self.QSNOWSubBasinTSS.sample(((SnowRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
+    #     #-report lake and reservoir waterbalance
+    #     if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
+    #         self.LakeSnowInTSS.sample(cQin)
+    #         self.LakeSnowOutTSS.sample(cQout)
+    #         self.LakeSnowStorTSS.sample(self.SnowRAstor)
+    #     if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
+    #         self.ResSnowInTSS.sample(cQin)
+    #         self.ResSnowOutTSS.sample(cQout)
+    #         self.ResSnowStorTSS.sample(self.SnowRAstor)
+    # #-Rain routing
+    # if self.RainRA_FLAG == 1:
+    #     self.RainRAstor = self.RainRAstor + pcr.ifthenelse(self.QFRAC==0, RainR * 0.001 * pcr.cellarea(), 0)
+    #     cQfrac = pcr.cover(self.RainRAstor / OldStorage, 0)
+    #     cQout = cQfrac * Qout
+    #     cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * RainR)
+    #     tempvar = self.advanced_routing.ROUT(self, pcr, cRunoffVolume, self.RainRAold, cQout, self.RainRAstor)
+    #     self.RainRAstor = tempvar[0]
+    #     RainRA = tempvar[1]
+    #     cQin = tempvar[2]
+    #     self.RainRAold = RainRA
+    #     self.reporting.reporting(self, pcr, 'RainRAtot', RainRA)
+    #     if self.mm_rep_FLAG == 1 and self.QRAIN_mm_FLAG == 1:
+    #         self.QRAINSubBasinTSS.sample(((RainRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
+    #     #-report lake and reservoir waterbalance
+    #     if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
+    #         self.LakeRainInTSS.sample(cQin)
+    #         self.LakeRainOutTSS.sample(cQout)
+    #         self.LakeRainStorTSS.sample(self.RainRAstor)
+    #     if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
+    #         self.ResRainInTSS.sample(cQin)
+    #         self.ResRainOutTSS.sample(cQout)
+    #         self.ResRainStorTSS.sample(self.RainRAstor)
+    # #-Glacier routing
+    # if self.GlacRA_FLAG == 1 and self.GlacFLAG == 1:
+    #     self.GlacRAstor = self.GlacRAstor + pcr.ifthenelse(self.QFRAC==0, GlacR * 0.001 * pcr.cellarea(), 0)
+    #     cQfrac = pcr.cover(self.GlacRAstor / OldStorage, 0)
+    #     cQout = cQfrac * Qout
+    #     cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * GlacR)
+    #     tempvar = self.advanced_routing.ROUT(self, pcr, cRunoffVolume, self.GlacRAold, cQout, self.GlacRAstor)
+    #     self.GlacRAstor = tempvar[0]
+    #     GlacRA = tempvar[1]
+    #     cQin = tempvar[2]
+    #     self.GlacRAold = GlacRA
+    #     self.reporting.reporting(self, pcr, 'GlacRAtot', GlacRA)
+    #     if self.mm_rep_FLAG == 1 and self.QGLAC_mm_FLAG == 1:
+    #         self.QGLACSubBasinTSS.sample(((GlacRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
+    #     #-report lake and reservoir waterbalance
+    #     if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
+    #         self.LakeGlacInTSS.sample(cQin)
+    #         self.LakeGlacOutTSS.sample(cQout)
+    #         self.LakeGlacStorTSS.sample(self.GlacRAstor)
+    #     if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
+    #         self.ResGlacInTSS.sample(cQin)
+    #         self.ResGlacOutTSS.sample(cQout)
+    #         self.ResGlacStorTSS.sample(self.GlacRAstor)
+    # #-Baseflow routing
+    # if self.BaseRA_FLAG == 1:
+    #     self.BaseRAstor = self.BaseRAstor + pcr.ifthenelse(self.QFRAC==0, self.BaseR * 0.001 * pcr.cellarea(), 0)
+    #     cQfrac = pcr.cover(self.BaseRAstor / OldStorage, 0)
+    #     cQout = cQfrac * Qout
+    #     cRunoffVolume = pcr.upstream(self.FlowDir, cQout) + pcr.ifthenelse(self.QFRAC==0, 0, 0.001 * pcr.cellarea() * self.BaseR)
+    #     tempvar = self.routing.ROUT(self, pcr, cRunoffVolume, self.BaseRAold, cQout, self.BaseRAstor)
+    #     self.BaseRAstor = tempvar[0]
+    #     BaseRA = tempvar[1]
+    #     cQin = tempvar[2]
+    #     self.BaseRAold = BaseRA
+    #     self.reporting.reporting(self, pcr, 'BaseRAtot', BaseRA)
+    #     if self.mm_rep_FLAG == 1 and self.QBASE_mm_FLAG == 1:
+    #         self.QBASESubBasinTSS.sample(((BaseRA * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) *1000)
+    #     #-report lake and reservoir waterbalance
+    #     if self.LakeFLAG == 1 and config.getint('REPORTING', 'Lake_wbal') ==1:
+    #         self.LakeBaseInTSS.sample(cQin)
+    #         self.LakeBaseOutTSS.sample(cQout)
+    #         self.LakeBaseStorTSS.sample(self.BaseRAstor)
+    #     if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') ==1:
+    #         self.ResBaseInTSS.sample(cQin)
+    #         self.ResBaseOutTSS.sample(cQout)
+    #         self.ResBaseStorTSS.sample(self.BaseRAstor)
     
     if self.travelTimeFLAG == 1:
         return Q, u, hydraulicRadius
