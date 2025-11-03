@@ -131,13 +131,9 @@ def init(self, pcr, config, csv, np):
         #-read WD ratio for water depth and flow velocity calculation
         self.WD_ratio_SHETRAN = config.getfloat('SHETRAN', 'WD_ratio')
 
-    #-import conservation module
-    import modules.conservation
-    self.conservation = modules.conservation
-    del modules.conservation
-
-    #-read init processes sediment transport
-    self.conservation.init(self, pcr, config)
+    # #-read sediment transport conservation
+    # if self.ConservationFLAG == 1:
+    #     self.conservation.sediment_transport(self, pcr, config)
 
 #-Determine transport capacity (g/l)
 def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
@@ -207,7 +203,7 @@ def dynamic(self, pcr, np, Q, Sed):
             self.roughnessFactorUpdate = self.roughnessFactor
 
         #-overwrite roughness factor with the value for structural conservation measures
-        if self.conservationFLAG == 1:
+        if self.ConservationFLAG == 1:
             self.roughnessFactorUpdate = pcr.ifthenelse(self.conservationMeasures > 0, self.v_TC_conservation / self.v_b, self.roughnessFactorUpdate)
         
         #-determine runoff

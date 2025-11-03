@@ -86,12 +86,13 @@ def Wilt(pcr, self, np):
 
 #-init pedotransfer processes
 def init(self, pcr, config, np):
+    #-read soil texture, organic matter and bulk density maps
     self.RootSandMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','RootSandMap')) / 100
     self.RootClayMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','RootClayMap')) / 100
     self.RootSiltMap = 1 - self.RootSandMap - self.RootClayMap
     self.RootOMMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','RootOMMap'))
     try:
-        self.RootBulkMap = config.getfloat('PEDOTRANSFER','RootBulkMap')
+        self.RootBulkMap = config.getfloat('PEDOTRANSFER','RootBulkMap') * self.ones
     except:
         self.RootBulkMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','RootBulkMap'))
 
@@ -99,10 +100,15 @@ def init(self, pcr, config, np):
     self.SubClayMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','SubClayMap')) / 100
     self.SubOMMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','SubOMMap'))
     try:
-        self.SubBulkMap = config.getfloat('PEDOTRANSFER','SubBulkMap')
+        self.SubBulkMap = config.getfloat('PEDOTRANSFER','SubBulkMap') * self.ones
     except:
         self.SubBulkMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','SubBulkMap'))
 
+    #-read change maps in organic matter and bulk density and apply to existing maps
+    if self.ConservationFLAG == 1:
+        self.conservation.pedotransfer(self, pcr, config)
+
+    #-apply pedotransfer functions
     self.RootDryMap = self.pedotransfer.Dry(pcr, self, self.RootSandMap, self.RootClayMap, self.RootOMMap, self.RootBulkMap)
     temp = self.pedotransfer.FieldAdj(pcr, self, self.RootSandMap, self.RootClayMap, self.RootOMMap, self.RootBulkMap)
     self.RootFieldMap = temp[0] * self.RootFieldFrac

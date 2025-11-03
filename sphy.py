@@ -56,6 +56,7 @@ class sphy(pcrm.DynamicModel):
 		self.ErosionFLAG = config.getint('MODULES','ErosionFLAG')
 		self.SedTransFLAG = config.getint('MODULES','SedTransFLAG')
 		self.MorphodynamicsFLAG = config.getint('MODULES','MorphodynamicsFLAG')
+		self.ConservationFLAG = config.getint('MODULES','ConservationFLAG')
 
 		# import the required modules
 		import datetime, calendar, ET, rootzone, subzone
@@ -144,6 +145,19 @@ class sphy(pcrm.DynamicModel):
 		self.RootDryFrac = config.getfloat('SOIL_CAL', 'RootDryFrac')
 		self.RootWiltFrac = config.getfloat('SOIL_CAL', 'RootWiltFrac')
 		self.RootKsatFrac = config.getfloat('SOIL_CAL', 'RootKsatFrac')
+
+		#-read maps and parameters for conservation
+		if self.ConservationFLAG == 1:
+			#-import conservation module
+			import modules.conservation
+			self.conservation = modules.conservation
+			del modules.conservation
+
+			#-read ponds map and set ponds flag to 1 in case of ponds
+			self.input.input(self, config, pcr, 'ponds', 'CONSERVATION', 'ponds', 0)
+			self.PondsFLAG = np.any(np.unique(pcr.pcr2numpy(self.ponds, -9999)) > 0)
+		else:
+			self.PondsFLAG = False
 
 		#-read soil maps
 		#-check for PedotransferFLAG
@@ -365,15 +379,8 @@ class sphy(pcrm.DynamicModel):
 				#-read init processes dynamic wave routing
 				self.travel_time_routing.init(self, pcr, pcrm, config, np)
 
-			#-In case re-infiltration is switched on
-			self.ReInfiltrationFLAG = config.getint('ROUTING', 'ReInfiltrationFLAG')
-			if self.ReInfiltrationFLAG == 1:
-				import modules.reinfiltration 
-				self.reinfiltration = modules.reinfiltration
-				del modules.reinfiltration
-
 		#-read and set routing maps and parameters
-		if self.ResFLAG == 1 or self.LakeFLAG == 1:
+		if self.ResFLAG == 1 or self.LakeFLAG == 1 or self.PondsFLAG:
 			#-import advanced routing module
 			import modules.advanced_routing
 			self.advanced_routing = modules.advanced_routing
@@ -571,6 +578,10 @@ class sphy(pcrm.DynamicModel):
 				#-read init processes advanced routing
 				self.advanced_routing.initial(self, pcr, config)
 
+		#-Check if ponds are included in the structural conservation
+		if self.ConservationFLAG == 1 and self.PondsFLAG:
+			self.conservation.ponds_initial(self, pcr, config)
+
 		#-Initial values for reporting and setting of time-series
 		#-set time-series reporting for mm flux from upstream area for prec and eta
 		pars = ['Prec','ETa','GMelt','QSNOW','QROOTR','QROOTD','QRAIN','QGLAC','QBASE','QTOT','Seep']
@@ -727,10 +738,14 @@ class sphy(pcrm.DynamicModel):
 		RootRunoff = tempvar[0]
 		#-Infiltration
 		Infil = tempvar[1]
-		#-Report infiltration
-		self.reporting.reporting(self, pcr, 'Infil', Infil)
 	    #-Updated rootwater content
 		self.RootWater = pcr.ifthenelse(RainFrac > 0, self.RootWater + Infil, self.RootWater)
+		#-Apply reinfiltration for ponds
+		if self.PondsFLAG and self.ReInfiltrationFLAG == 1:
+			reInfil = self.conservation.ponds_reinfiltration(self, pcr)
+			Infil += reInfil
+		#-Report infiltration
+		self.reporting.reporting(self, pcr, 'Infil', Infil)
 
 		#-Actual evapotranspiration
 		if self.PlantWaterStressFLAG == 1:
@@ -866,14 +881,6 @@ class sphy(pcrm.DynamicModel):
 			if self.GlacFLAG:
 				#-read dynamic reporting processes glacier
 				self.glacier.dynamic_reporting(self, pcr, pd, np)
-
-			#-Re-infiltration
-			if self.ReInfiltrationFLAG == 1 and self.travelTimeFLAG == 1:
-				#-Determine re-infiltration
-				Infil = self.reinfiltration.dynamic(self, pcr)
-
-				#-Add to rootwater
-				self.RootWater = self.RootWater + Infil
 
 		#-Water balance
 		if self.GlacFLAG and self.GlacRetreat == 1:
