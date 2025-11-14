@@ -21,16 +21,25 @@
 
 print('dynamic vegetation module imported')
 
-#-Function that returns crop factor (Kc) and maximum storage (Smax)
-def Veg_function(pcr, ndvi, fpar_max, fpar_min, lai_max, ndvi_min, ndvi_max, kc_min, kc_max):
+#-Function that returns leaf area index (LAI)
+def LAI(pcr, ndvi, fpar_max, fpar_min, lai_max, ndvi_min, ndvi_max):
     SR = (1 + ndvi)/(1 - ndvi)
     SR_max = (1 + ndvi_max)/(1 - ndvi_max)
     SR_min = (1 + ndvi_min)/(1 - ndvi_min)
     FPAR = pcr.min((SR - SR_min) / (SR_max - SR_min) * (fpar_max - fpar_min), 0.95)
     LAI = lai_max * pcr.log10(1-FPAR)/pcr.log10(1-fpar_max)
-    Smax = 0.935 + 0.498*LAI - 0.00575*(LAI**2)            
+    return LAI
+
+#-Function that returns the maximum storage (Smax)
+def Smax(self, pcr, LAI):
+    Smax = self.Sinf * (1 - pcr.exp(-self.Kappa * LAI))
+    # Smax = 0.935 + 0.498*LAI - 0.00575*(LAI**2)
+    return Smax
+
+#-Function that returns crop factor (Kc)
+def cropCoefficient(pcr, ndvi, ndvi_min, ndvi_max, kc_min, kc_max):
     Kc = kc_min + (kc_max - kc_min) * pcr.max(pcr.min((ndvi - ndvi_min)/(ndvi_max - ndvi_min), 1), 0)
-    return Kc, Smax, LAI
+    return Kc
 
 #-Function that returns the interception, precipitation throughfall, and remaining storage
 def Inter_function(pcr, S, Smax, Etr):
@@ -48,6 +57,14 @@ def init(self, pcr, config):
     #-read the vegetation parameters
     LAImax_table = self.inpath + config.get('DYNVEG', 'LAImax')
     self.LAImax = pcr.lookupscalar(LAImax_table, self.LandUse)
+    # pcr.setglobaloption('matrixtable')
+    # Smax_table = self.inpath + config.get('DYNVEG', 'Smax')
+    # self.Sinf = pcr.lookupscalar(Smax_table, 1, self.LandUse)
+    # self.Kappa = pcr.lookupscalar(Smax_table, 2, self.LandUse)
+    self.Sinf = 2.09
+    self.Kappa = 0.294
+    # pcr.setglobaloption('columntable')
+
     pars = ['NDVImax','NDVImin','NDVIbase','KCmax','KCmin','FPARmax','FPARmin']
     for i in pars:
         try:
@@ -83,19 +100,26 @@ def dynamic(self, pcr, pcrm, np, Precip, ETref):
     #-Report ndvi
     self.reporting.reporting(self, pcr, 'NDVI', ndvi)
 
-    #-calculate the vegetation parameters
-    vegoutput = self.dynamic_veg.Veg_function(pcr, ndvi, self.FPARmax, self.FPARmin, self.LAImax, self.NDVImin, self.NDVImax, self.KCmin, self.KCmax)
-    #-Kc
-    self.Kc = vegoutput[0]
-    #-LAI
-    self.LAI = vegoutput[2]
+    # #-calculate the vegetation parameters
+    # vegoutput = self.dynamic_veg.Veg_function(self, pcr, ndvi, self.FPARmax, self.FPARmin, self.LAImax, self.NDVImin, self.NDVImax, self.KCmin, self.KCmax)
+    # #-Kc
+    # self.Kc = vegoutput[0]
+    # #-LAI
+    # self.LAI = vegoutput[2]
+
+    #-Determine crop coefficient (Kc)
+    self.Kc = self.dynamic_veg.cropCoefficient(pcr, ndvi, self.NDVImin, self.NDVImax, self.KCmin, self.KCmax)
+    #-Determine LAI
+    self.LAI = LAI(pcr, ndvi, self.FPARmax, self.FPARmin, self.LAImax, self.NDVImin, self.NDVImax)
     #-report leaf area index
     self.reporting.reporting(self, pcr, 'LAI', self.LAI)
 
     #-Update canopy storage
     self.Scanopy = self.Scanopy + Precip
+    #-Determine maximum storage (Smax)
+    Smax = self.dynamic_veg.Smax(self, pcr, self.LAI)
     #-interception and effective precipitation
-    intercep = self.dynamic_veg.Inter_function(pcr, self.Scanopy, vegoutput[1], ETref)
+    intercep = self.dynamic_veg.Inter_function(pcr, self.Scanopy, Smax, ETref)
     #-interception
     Int = intercep[0]
     Int = Int * (1-self.openWaterFrac)
