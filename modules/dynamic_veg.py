@@ -32,8 +32,10 @@ def LAI(pcr, ndvi, fpar_max, fpar_min, lai_max, ndvi_min, ndvi_max):
 
 #-Function that returns the maximum storage (Smax)
 def Smax(self, pcr, LAI):
-    Smax = self.Sinf * (1 - pcr.exp(-self.Kappa * LAI))
-    # Smax = 0.935 + 0.498*LAI - 0.00575*(LAI**2)
+    if self.Smax_model == 1:
+        Smax = 0.935 + 0.498*LAI - 0.00575*(LAI**2)
+    elif self.Smax_model == 2:
+        Smax = self.Sinf * (1 - pcr.exp(-self.Kappa * LAI))
     return Smax
 
 #-Function that returns crop factor (Kc)
@@ -57,13 +59,20 @@ def init(self, pcr, config):
     #-read the vegetation parameters
     LAImax_table = self.inpath + config.get('DYNVEG', 'LAImax')
     self.LAImax = pcr.lookupscalar(LAImax_table, self.LandUse)
-    # pcr.setglobaloption('matrixtable')
-    # Smax_table = self.inpath + config.get('DYNVEG', 'Smax')
-    # self.Sinf = pcr.lookupscalar(Smax_table, 1, self.LandUse)
-    # self.Kappa = pcr.lookupscalar(Smax_table, 2, self.LandUse)
-    self.Sinf = 2.09
-    self.Kappa = 0.294
-    # pcr.setglobaloption('columntable')
+    #-read Smax model
+    self.Smax_model = config.getint('DYNVEG', 'Smax_model')
+    #-Read additional parameters in case of Smax model 2
+    if self.Smax_model == 2:
+        Smax_table = config.get('DYNVEG', 'Smax_table')
+        if Smax_table == "":
+            self.Sinf = config.getfloat('DYNVEG', 'Sinf')
+            self.Kappa = config.getfloat('DYNVEG', 'Kappa')
+        else:
+            Smax_table = self.inpath + config.get('DYNVEG', 'Smax_table')
+            pcr.setglobaloption('matrixtable')
+            self.Sinf = pcr.lookupscalar(Smax_table, 1, self.LandUse)
+            self.Kappa = pcr.lookupscalar(Smax_table, 2, self.LandUse)
+            pcr.setglobaloption('columntable')
 
     pars = ['NDVImax','NDVImin','NDVIbase','KCmax','KCmin','FPARmax','FPARmin']
     for i in pars:
