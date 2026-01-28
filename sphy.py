@@ -301,29 +301,38 @@ class sphy(pcrm.DynamicModel):
 		#-read and set climate forcing and the calculation of etref
 
 		#-read precipitation data
-		#-read flag for precipitation forcing by netcdf
-		self.precNetcdfFLAG = config.getint('CLIMATE', 'precNetcdfFLAG')
-		if self.precNetcdfFLAG == 1:
-			#-read configuration for forcing by netcdf
-			self.netcdf2PCraster.getConfigNetcdf(self, config, 'Prec', 'CLIMATE')
 
-			#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-			self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Prec')
+		#-read flag for precipitation forcing by netcdf
+		self.NetcdfFLAG = config.getint('NETCDF', 'NetcdfFLAG')
+
+		#-read netcdf parameters
+		if self.NetcdfFLAG == 1:
+			self.Netcdf_VarX = config.get('NETCDF', 'x_coord')
+			self.Netcdf_VarY = config.get('NETCDF', 'y_coord')
+			self.Netcdf_InProj = config.get('NETCDF', 'epsg_netcdf')
+			self.Netcdf_OutProj = config.get('NETCDF', 'epsg_model')
+
+			#-read flag for precipitation forcing by netcdf
+			self.precNetcdfFLAG = config.getint('NETCDF', 'precNetcdfFLAG')
+			if self.precNetcdfFLAG == 1:
+				#-read configuration for forcing by netcdf
+				self.netcdf2PCraster.getConfigNetcdf(self, config, 'Prec', 'NETCDF')
+
+				#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
+				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Prec')
+
+			#-read flag for temperature forcing by netcdf
+			self.tempNetcdfFLAG = config.getint('NETCDF', 'tempNetcdfFLAG')
+			if self.tempNetcdfFLAG == 1:
+				#-read configuration for forcing by netcdf
+				self.netcdf2PCraster.getConfigNetcdf(self, config, 'Temp', 'NETCDF')
+
+				#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
+				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Temp')
 		else:
 			#-read precipitation forcing folder
 			self.Prec = self.inpath + config.get('CLIMATE','Prec')
 
-
-		#-read precipitation data
-		#-read flag for temperature forcing by netcdf
-		self.tempNetcdfFLAG = config.getint('CLIMATE', 'tempNetcdfFLAG')
-		if self.tempNetcdfFLAG == 1:
-			#-read configuration for forcing by netcdf
-			self.netcdf2PCraster.getConfigNetcdf(self, config, 'Temp', 'CLIMATE')
-
-			#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-			self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Temp')
-		else:
 			#-read temperature forcing folder
 			self.Tair = self.inpath + config.get('CLIMATE','Tair')
 		#-read flag for etref time series input
@@ -333,25 +342,28 @@ class sphy(pcrm.DynamicModel):
 			self.ETref = self.inpath + config.get('ETREF','ETref')
 		else:
 			self.Lat = pcr.readmap(self.inpath + config.get('ETREF','Lat'))
-			#-read flag for minimum temperature forcing by netcdf
-			self.TminNetcdfFLAG = config.getint('ETREF', 'TminNetcdfFLAG')
-			if self.TminNetcdfFLAG == 1:
-				#-read configuration for forcing by netcdf
-				self.netcdf2PCraster.getConfigNetcdf(self, config, 'Tmin', 'ETREF')
 
-				#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Tmin')
+			#-read netcdf parameters
+			if self.NetcdfFLAG == 1:
+				#-read flag for minimum temperature forcing by netcdf
+				self.TminNetcdfFLAG = config.getint('NETCDF', 'TminNetcdfFLAG')
+				if self.TminNetcdfFLAG == 1:
+					#-read configuration for forcing by netcdf
+					self.netcdf2PCraster.getConfigNetcdf(self, config, 'Tmin', 'NETCDF')
+
+					#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
+					self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Tmin')
+
+				#-read flag for maximum temperature forcing by netcdf
+				self.TmaxNetcdfFLAG = config.getint('NETCDF', 'TmaxNetcdfFLAG')
+				if self.TmaxNetcdfFLAG == 1:
+					#-read configuration for forcing by netcdf
+					self.netcdf2PCraster.getConfigNetcdf(self, config, 'Tmax', 'NETCDF')
+
+					#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
+					self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Tmax')
 			else:
 				self.Tmin = self.inpath + config.get('ETREF','Tmin')
-			#-read flag for maximum temperature forcing by netcdf
-			self.TmaxNetcdfFLAG = config.getint('ETREF', 'TmaxNetcdfFLAG')
-			if self.TmaxNetcdfFLAG == 1:
-				#-read configuration for forcing by netcdf
-				self.netcdf2PCraster.getConfigNetcdf(self, config, 'Tmax', 'ETREF')
-
-				#-determine x,y-coordinates of netcdf file and model domain and indices of netcdf corresponding to model domain
-				self.netcdf2PCraster.netcdf2pcrInit(self, pcr, config, 'Tmax')
-			else:
 				self.Tmax = self.inpath + config.get('ETREF','Tmax')
 			self.Gsc = config.getfloat('ETREF', 'Gsc')
 			import hargreaves
@@ -623,9 +635,10 @@ class sphy(pcrm.DynamicModel):
 		RainFrac = pcr.ifthenelse(self.SnowStore == 0, pcr.scalar(1 - self.GlacFrac), 0)
 
 		#-Read the precipitation time-series
-		if self.precNetcdfFLAG == 1:
-			#-read forcing by netcdf input
-			Precip = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Prec')
+		if self.NetcdfFLAG == 1:
+			if self.precNetcdfFLAG == 1:
+				#-read forcing by netcdf input
+				Precip = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Prec')
 		else:
 			#-read forcing by map input
 			Precip = pcr.readmap(pcrm.generateNameT(self.Prec, self.counter))
@@ -635,9 +648,10 @@ class sphy(pcrm.DynamicModel):
 		self.reporting.reporting(self, pcr, 'TotPrecF', Precip * (1-self.GlacFrac))
 
 		#-Temperature and determine reference evapotranspiration
-		if self.tempNetcdfFLAG == 1:
-			#-read forcing by netcdf input
-			Temp = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Temp')
+		if self.NetcdfFLAG == 1:
+			if self.tempNetcdfFLAG == 1:
+				#-read forcing by netcdf input
+				Temp = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Temp')
 		else:
 			#-read forcing by map input
 			Temp = pcr.readmap(pcrm.generateNameT(self.Tair, self.counter))
@@ -645,9 +659,13 @@ class sphy(pcrm.DynamicModel):
 		self.reporting.reporting(self, pcr, 'TAvg', Temp)
 
 		if self.ETREF_FLAG == 0:
-			if self.TminNetcdfFLAG == 1:
-				#-read forcing by netcdf input
-				TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmin')
+			if self.NetcdfFLAG == 1:
+				if self.TminNetcdfFLAG == 1:
+					#-read forcing by netcdf input
+					TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmin')
+				if self.TmaxNetcdfFLAG == 1:
+					#-read forcing by netcdf input
+					TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmax')
 			else:
 				#-read forcing by map input
 				try:
@@ -656,10 +674,7 @@ class sphy(pcrm.DynamicModel):
 				except:
 					#-read min temperature map based on day of the year
 					TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.curdate.timetuple().tm_yday))
-			if self.TmaxNetcdfFLAG == 1:
-				#-read forcing by netcdf input
-				TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(self, pcr, 'Tmax')
-			else:
+
 				#-read forcing by map input
 				try:
 					#-read max temperature map based on counter

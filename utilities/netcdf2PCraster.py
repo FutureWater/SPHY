@@ -32,11 +32,11 @@ filecache = dict()
 #-initial processes to determine the x and coordinates of the model grid and netcdf grid
 def netcdf2pcrInit(self, pcr, config, forcing):
     #-define input and ouput projections
-    if getattr(self, forcing + 'InProj') == "rotated":
+    if self.Netcdf_InProj == "rotated":
         inProj = "EPSG:4326"
     else:
-        inProj = "EPSG:" + getattr(self, forcing + 'InProj')
-    outProj = "EPSG:" + getattr(self, forcing + 'OutProj')
+        inProj = "EPSG:" + self.Netcdf_InProj
+    outProj = "EPSG:" + self.Netcdf_OutProj
 
     #-get the attributes of cloneMap
     attributeClone = getMapAttributesALL(self.clonefile)
@@ -73,15 +73,15 @@ def netcdf2pcrInit(self, pcr, config, forcing):
 
 
     #-determine netcdf cell size and subset coordinates to model domain
-    if getattr(self, forcing + 'InProj') == "rotated":
+    if self.Netcdf_InProj == "rotated":
         #-get coordinates from netcdf file
-        xrot = f.variables[getattr(self, forcing + 'VarX')][:]
-        yrot = f.variables[getattr(self, forcing + 'VarY')][:]
+        xrot = f.variables[self.Netcdf_VarX][:]
+        yrot = f.variables[self.Netcdf_VarY][:]
 
         #-get coordinates of north pole
         try:
-            npLat = f.variables[getattr(self, forcing + 'VarX')].grid_north_pole_latitude
-            npLon = f.variables[getattr(self, forcing + 'VarX')].grid_north_pole_longitude
+            npLat = f.variables[self.Netcdf_VarX].grid_north_pole_latitude
+            npLon = f.variables[self.Netcdf_VarX].grid_north_pole_longitude
         except:
             npLat = f.variables["rotated_pole"].grid_north_pole_latitude
             npLon = f.variables["rotated_pole"].grid_north_pole_longitude
@@ -127,18 +127,18 @@ def netcdf2pcrInit(self, pcr, config, forcing):
 
     else:
         #-get cell size, number of rows and columns and upper left corner coordinates from netcdf grid
-        cellsizeInput = f.variables[getattr(self, forcing + 'VarY')][1]- f.variables[getattr(self, forcing + 'VarY')][0]
+        cellsizeInput = f.variables[self.Netcdf_VarY][1]- f.variables[self.Netcdf_VarY][0]
         cellsizeInput = float(cellsizeInput)
 
         #-determine x-coordinates corresponding to model grid (+ buffer) from netcdf grid
-        xIdxSta = np.argmin(abs(f.variables[getattr(self, forcing + 'VarX')][:] - (min(xULCloneInput, xLLCloneInput) + 2 * cellsizeInput)))
-        xIdxEnd = np.argmin(abs(f.variables[getattr(self, forcing + 'VarX')][:] - (max(xURCloneInput, xLRCloneInput) - 2 * cellsizeInput)))
-        x = f.variables[getattr(self, forcing + 'VarX')][xIdxSta:(xIdxEnd + 1)]
+        xIdxSta = np.argmin(abs(f.variables[self.Netcdf_VarX][:] - (min(xULCloneInput, xLLCloneInput) + 2 * cellsizeInput)))
+        xIdxEnd = np.argmin(abs(f.variables[self.Netcdf_VarX][:] - (max(xURCloneInput, xLRCloneInput) - 2 * cellsizeInput)))
+        x = f.variables[self.Netcdf_VarX][xIdxSta:(xIdxEnd + 1)]
 
         #-determine y-coordinates corresponding to model grid (+ buffer) from netcdf grid
-        yIdxSta = np.argmin(abs(f.variables[getattr(self, forcing + 'VarY')][:] - (max(yULCloneInput, yURCloneInput) - 2 * cellsizeInput)))
-        yIdxEnd = np.argmin(abs(f.variables[getattr(self, forcing + 'VarY')][:] - (min(yLLCloneInput, yLRCloneInput) + 2 * cellsizeInput)))
-        y = f.variables[getattr(self, forcing + 'VarY')][yIdxSta:(yIdxEnd + 1)]
+        yIdxSta = np.argmin(abs(f.variables[self.Netcdf_VarY][:] - (max(yULCloneInput, yURCloneInput) - 2 * cellsizeInput)))
+        yIdxEnd = np.argmin(abs(f.variables[self.Netcdf_VarY][:] - (min(yLLCloneInput, yLRCloneInput) + 2 * cellsizeInput)))
+        y = f.variables[self.Netcdf_VarY][yIdxSta:(yIdxEnd + 1)]
 
         #-transform x and y coordinates to grid
         x,y = np.meshgrid(x, y)
@@ -163,7 +163,7 @@ def netcdf2pcrInit(self, pcr, config, forcing):
     setattr(self, forcing + 'y', y)
     setattr(self, forcing + 'xi', xi)
     setattr(self, forcing + 'yi', yi)
-    if getattr(self, forcing + 'InProj') == "rotated":
+    if self.Netcdf_InProj == "rotated":
         setattr(self, forcing + 'xyUL', xyUL)
         setattr(self, forcing + 'xyLL', xyLL)
         setattr(self, forcing + 'xyUR', xyUR)
@@ -189,7 +189,7 @@ def netcdf2pcrDynamic(self, pcr, forcing): #ncFile, varName, dateInput, method, 
     # idx = int(nc.date2index(self.curdate, f.variables['date'], select ='nearest'))
 
     #-get raw netcdf gridded data from netcdf, transform to array and multiply with factor
-    if getattr(self, forcing + 'InProj') == "rotated":
+    if self.Netcdf_InProj == "rotated":
         z = f.variables[getattr(self, forcing + 'VarName')][idx, ..., getattr(self, forcing + 'xyUL'):(getattr(self, forcing + 'xyLL') + 1), getattr(self, forcing + 'xyUR'):(getattr(self, forcing + 'xyLR') + 1)]
     else:
         z = f.variables[getattr(self, forcing + 'VarName')][idx, ..., getattr(self, forcing + 'yIdxSta'):(getattr(self, forcing + 'yIdxEnd') + 1), getattr(self, forcing + 'xIdxSta'):(getattr(self, forcing + 'xIdxEnd') + 1)]
@@ -250,12 +250,8 @@ def getConfigNetcdf(self, config, forcing, section):
     setattr(self, forcing + 'NetcdfInput', config.get(section, forcing + 'NetcdfInput').split(','))
     netcdfInput = getattr(self, forcing + 'NetcdfInput')
     setattr(self, forcing + 'VarName', netcdfInput[0])
-    setattr(self, forcing + 'VarX', netcdfInput[1])
-    setattr(self, forcing + 'VarY', netcdfInput[2])
-    setattr(self, forcing + 'Method', netcdfInput[3])
-    setattr(self, forcing + 'Factor', float(netcdfInput[4]))
-    setattr(self, forcing + 'InProj', netcdfInput[5])
-    setattr(self, forcing + 'OutProj', netcdfInput[6])
+    setattr(self, forcing + 'Method', netcdfInput[1])
+    setattr(self, forcing + 'Factor', float(netcdfInput[2]))
 
 
 #-function to transform rotated lat-lon to regular lat-lon
