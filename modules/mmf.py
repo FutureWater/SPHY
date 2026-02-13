@@ -60,6 +60,36 @@ def DetachmentRunoff(self, pcr, DR, texture, Q):
 
     return H
 
+#-Manning for tilled conditions (manningTilled; s/m1/3)
+def manningTillage(self, pcr):
+    manningTilled = pcr.exp(-2.1132 + 0.0349 * self.RFR)
+    return manningTilled
+
+#-Manning for vegetated conditions (manningVegetated; s/m1/3)
+def manningVegetation(waterDepth, diameter, noElements):
+    manningVegetated = (waterDepth**(0.67)) / ((2 * 9.81) / (diameter * noElements))**0.5
+    return manningVegetated
+
+#-Determine roughness
+def manningField(self, pcr, waterDepth):
+    #-Determine Manning's roughness for in-field deposition
+    manningHillslopeVegetation = self.mmf.manningVegetation(waterDepth, self.Diameter, self.NoElements)
+    manningHillslopeVegetation = pcr.ifthenelse(self.NoVegetation == 1, 0, manningHillslopeVegetation)
+    manningHillslopeVegetation = pcr.ifthenelse(self.NoErosion == 1, 0, manningHillslopeVegetation)
+    manningHillslopeVegetation = pcr.ifthenelse(self.n_table > 0, self.n_table, manningHillslopeVegetation)
+    manningHillslope = (self.n_soil**2 + manningHillslopeVegetation**2)**0.5
+
+    #-Determine Manning's roughness after harvest
+    if self.harvest_FLAG:
+        manningHillslopeHarvestVegetation = self.mmf.manningVegetation(waterDepth, self.Diameter_harvest, self.NoElements_harvest)
+        manningHillslopeHarvestVegetation = pcr.ifthenelse(self.Tillage_harvest == 1, 0, manningHillslopeHarvestVegetation)
+        manningHillslopeHarvest = (self.n_soil**2 + manningHillslopeHarvestVegetation**2)**0.5
+        manningHillslopeHarvest = pcr.cover(manningHillslopeHarvest, manningHillslope)
+    else: 
+        manningHillslopeHarvest = self.ones * 0
+    
+    return manningHillslope, manningHillslopeHarvest
+
 #-Flow velocity based on manning (v; m/s)
 def FlowVelocity(self, pcr, manning, waterDepth):
     v = 1 / manning * waterDepth**(0.67) * pcr.ifthenelse(self.Slope == 0, 1e-5, self.Slope)**0.5
@@ -102,29 +132,13 @@ def init(self, pcr, config):
     except:
         self.PrecInt = config.getfloat('MMF', 'PrecInt')
 
-    #-read table with MMF input parameters per landuse class
-    pcr.setglobaloption('matrixtable')
-    MMF_table = self.inpath + config.get('MMF', 'MMF_table')
-    self.PlantHeight = pcr.lookupscalar(MMF_table, 1, self.LandUse)
-    self.CC_table = pcr.lookupscalar(MMF_table, 2, self.LandUse)
-    self.GC_table = pcr.lookupscalar(MMF_table, 3, self.LandUse)
-    pcr.setglobaloption('columntable')
-
-    #-set ground cover for first time step
-    self.GC = self.GC_table
-
-    #-read table with MMF input parameters per landuse class for the period after harvest
-    pcr.setglobaloption('matrixtable')
-    if self.harvest_FLAG:
-        MMF_harvest_table = self.inpath + config.get('MMF', 'MMF_harvest')
-        self.Sowing = pcr.lookupscalar(MMF_harvest_table, 1, self.LandUse)
-        self.Harvest = pcr.lookupscalar(MMF_harvest_table, 2, self.LandUse)
-        self.PlantHeight_harvest = pcr.lookupscalar(MMF_harvest_table, 3, self.LandUse)
-        self.CC_harvest = pcr.lookupscalar(MMF_harvest_table, 4, self.LandUse)
-        self.GC_harvest = pcr.lookupscalar(MMF_harvest_table, 5, self.LandUse)
-    pcr.setglobaloption('columntable')
-
-    #-read other model parameters
+    #-Read mmf parameters
+    self.deltaClay = config.getfloat('MMF', 'deltaClay') * 1e-6
+    self.deltaSilt = config.getfloat('MMF', 'deltaSilt') * 1e-6
+    self.deltaSand = config.getfloat('MMF', 'deltaSand') * 1e-6
+    self.deltaGravel = config.getfloat('MMF', 'deltaGravel') * 1e-6
+    self.rho_s = config.getfloat('MMF', 'rho_s')
+    self.rho = config.getfloat('MMF', 'rho')
     self.K_c = config.getfloat('MMF', 'K_c')
     self.K_z = config.getfloat('MMF', 'K_z')
     self.K_s = config.getfloat('MMF', 'K_s')
@@ -135,8 +149,55 @@ def init(self, pcr, config):
     self.d_field = config.getfloat('MMF', 'depthInField')
     self.eta = config.getfloat('MMF', 'eta')
 
-    #-Determine flow velocity for in field deposition
-    self.n_field, self.n_field_harvest = self.roughness.manningField(self, pcr, self.d_field)
+    #-read input parameters
+    self.n_bare = config.getfloat('MMF', 'manningBare')
+    self.RFR = config.getfloat('MMF', 'RFR')
+    try:
+        self.n_tilled_fixed = config.getfloat('MMF', 'manningTillage')
+    except: 
+        self.n_tilled_fixed = ""
+    if self.n_tilled_fixed == "":
+        self.n_tilled = self.mmf.manningTillage(self, pcr)
+    else:
+        self.n_tilled = self.n_tilled_fixed * self.ones
+
+    #-read table with MMF input parameters per landuse class
+    pcr.setglobaloption('matrixtable')
+    MMF_table = self.inpath + config.get('MMF', 'MMF_table')
+    self.PlantHeight = pcr.lookupscalar(MMF_table, 1, self.LandUse)
+    self.NoElements = pcr.lookupscalar(MMF_table, 2, self.LandUse)
+    self.Diameter = pcr.lookupscalar(MMF_table, 3, self.LandUse)
+    self.CC_table = pcr.lookupscalar(MMF_table, 4, self.LandUse)
+    self.GC_table = pcr.lookupscalar(MMF_table, 5, self.LandUse)
+    self.NoErosion = pcr.lookupscalar(MMF_table, 6, self.LandUse)
+    self.Tillage = pcr.lookupscalar(MMF_table, 7, self.LandUse)
+    self.n_table = pcr.lookupscalar(MMF_table, 8, self.LandUse)
+    self.NoVegetation = pcr.lookupscalar(MMF_table, 9, self.LandUse)
+    pcr.setglobaloption('columntable')
+
+    #-read table with MMF input parameters per landuse class for the period after harvest
+    self.harvest_FLAG = config.getfloat('MMF', 'harvestFLAG')
+    pcr.setglobaloption('matrixtable')
+    if self.harvest_FLAG:
+        MMF_harvest_table = self.inpath + config.get('MMF', 'MMF_harvest')
+        self.Sowing = pcr.lookupscalar(MMF_harvest_table, 1, self.LandUse)
+        self.Harvest = pcr.lookupscalar(MMF_harvest_table, 2, self.LandUse)
+        self.PlantHeight_harvest = pcr.lookupscalar(MMF_harvest_table, 3, self.LandUse)
+        self.NoElements_harvest = pcr.lookupscalar(MMF_harvest_table, 4, self.LandUse)
+        self.Diameter_harvest = pcr.lookupscalar(MMF_harvest_table, 5, self.LandUse)
+        self.CC_harvest = pcr.lookupscalar(MMF_harvest_table, 6, self.LandUse)
+        self.GC_harvest = pcr.lookupscalar(MMF_harvest_table, 7, self.LandUse)
+        self.Tillage_harvest = pcr.lookupscalar(MMF_harvest_table, 8, self.LandUse)
+    pcr.setglobaloption('columntable')
+
+    #-set ground cover for first time step
+    self.GC = self.GC_table
+
+    #-determine soil surface manning
+    self.n_soil = pcr.ifthenelse(self.Tillage == 1, self.n_tilled, self.n_bare)
+
+    #-Determine manning for in field deposition
+    self.n_field, self.n_field_harvest = self.mmf.manningField(self, pcr, self.d_field)
 
     #-Determine flow velocity for in field deposition
     self.v_field = self.mmf.FlowVelocity(self, pcr, self.n_field, self.d_field)
@@ -148,6 +209,39 @@ def init(self, pcr, config):
 
 #-dynamic processes
 def dynamic(self, pcr, Precip, Runoff):
+    #-determine areas that have been harvested
+    if self.harvest_FLAG:
+        self.Harvested = self.ones * 0
+        self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
+        self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
+        self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
+    
+    #-set canopy cover to value from MMF harvest table for months between harvest and sowing
+    if self.DynVegFLAG == 0 and self.harvest_FLAG:
+        self.CC = pcr.ifthenelse(self.Harvested == 1, self.CC_harvest, self.CC_table)
+
+    #-set ground cover to value from MMF harvest table for months between harvest and sowing
+    if self.harvest_FLAG:
+        self.GC = pcr.ifthenelse(self.Harvested == 1, self.GC_harvest, self.GC_table)
+    else:
+        self.GC = self.GC_table
+
+    #-update plant height for months between harvest and sowing
+    if self.harvest_FLAG:
+        self.PlantHeightUpdate = pcr.ifthenelse(self.Harvested == 1, self.PlantHeight_harvest, self.PlantHeight)
+    else:
+        self.PlantHeightUpdate = self.PlantHeight
+
+    #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
+    if self.harvest_FLAG:
+        self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
+    else:
+        self.v_update = self.v_field
+
+    #-in case cover crops are applied
+    if self.coverCropsFLAG == 1:
+        self.conservation.cover_crops_dynamic(self, pcr)
+
     #-determine effective rainfall
     Rf = self.mmf.RainEff(self, pcr, Precip)
 
@@ -189,11 +283,11 @@ def dynamic(self, pcr, Precip, Runoff):
     #-report detachment of soil particles by runoff (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRun', H * pcr.cellarea() / 1000)
 
-    #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
-    if self.harvest_FLAG:
-        self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
-    else:
-        self.v_update = self.v_field
+    # #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
+    # if self.harvest_FLAG:
+    #     self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
+    # else:
+    #     self.v_update = self.v_field
 
     #-determine particle fall number
     N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.v_update, self.d_field)

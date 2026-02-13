@@ -45,6 +45,9 @@ def init(self, pcr, config, csv, np):
     #-read rock fraction map
     self.RockFrac = pcr.readmap(self.inpath + config.get('EROSION', 'RockFrac'))
 
+    #-Read flag for use of routed runoff
+    self.RoutedRunoffFLAG = config.getint('EROSION', 'RoutedRunoffFLAG')
+
     #-Read flag if channels should be excluded from the detachment by runoff calculation
     self.exclChannelsFLAG = config.getint('EROSION', 'exclChannelsFLAG')
     
@@ -56,37 +59,6 @@ def init(self, pcr, config, csv, np):
         #-determine upstream area larger than upstream_km2 and define hillslope cells based on upstream area
         self.Upstream_km2 = config.getfloat('EROSION', 'upstream_km2')
         self.Hillslope = pcr.scalar(self.UpstreamArea <= self.Upstream_km2)
-
-    #-Read soil erosion parameters
-    self.deltaClay = config.getfloat('EROSION', 'deltaClay') * 1e-6
-    self.deltaSilt = config.getfloat('EROSION', 'deltaSilt') * 1e-6
-    self.deltaSand = config.getfloat('EROSION', 'deltaSand') * 1e-6
-    self.deltaGravel = config.getfloat('EROSION', 'deltaGravel') * 1e-6
-    self.rho_s = config.getfloat('EROSION', 'rho_s')
-    self.rho = config.getfloat('EROSION', 'rho')
-
-    #-read table with soil erosion input parameters per landuse class
-    pcr.setglobaloption('matrixtable')
-    EROSION_table = self.inpath + config.get('EROSION', 'EROSION_table')
-    self.NoElements = pcr.lookupscalar(EROSION_table, 1, self.LandUse)
-    self.Diameter = pcr.lookupscalar(EROSION_table, 2, self.LandUse)
-    self.NoErosion = pcr.lookupscalar(EROSION_table, 3, self.LandUse)
-    self.Tillage = pcr.lookupscalar(EROSION_table, 4, self.LandUse)
-    self.n_table = pcr.lookupscalar(EROSION_table, 5, self.LandUse)
-    self.NoVegetation = pcr.lookupscalar(EROSION_table, 6, self.LandUse)
-    pcr.setglobaloption('columntable')
-
-    #-read table with MMF input parameters per landuse class for the period after harvest
-    self.harvest_FLAG = config.getfloat('EROSION', 'harvestFLAG')
-    pcr.setglobaloption('matrixtable')
-    if self.harvest_FLAG:
-        EROSION_harvest_table = self.inpath + config.get('EROSION', 'EROSION_harvest')
-        self.Sowing = pcr.lookupscalar(EROSION_harvest_table, 1, self.LandUse)
-        self.Harvest = pcr.lookupscalar(EROSION_harvest_table, 2, self.LandUse)
-        self.NoElements_harvest = pcr.lookupscalar(EROSION_harvest_table, 3, self.LandUse)
-        self.Diameter_harvest = pcr.lookupscalar(EROSION_harvest_table, 4, self.LandUse)
-        self.Tillage_harvest = pcr.lookupscalar(EROSION_harvest_table, 5, self.LandUse)
-    pcr.setglobaloption('columntable')
 
     #-nominal map with reservoir IDs and extent
     if self.ResFLAG == 1:
@@ -121,13 +93,13 @@ def init(self, pcr, config, csv, np):
     #     #-Set channel width to rill width for hillslope cells
     #     self.channelWidth = pcr.ifthenelse(self.channelHillslope == 2, self.rillWidth, self.channelWidth)
 
-    #-import roughness module
-    import modules.roughness
-    self.roughness = modules.roughness
-    del modules.roughness
+    # #-import roughness module
+    # import modules.roughness
+    # self.roughness = modules.roughness
+    # del modules.roughness
 
-    #-read init processes sediment transport
-    self.roughness.init(self, pcr, config)
+    # #-read init processes sediment transport
+    # self.roughness.init(self, pcr, config)
 
     #-read MUSLE input parameters
     if self.ErosionModel == 1:
@@ -189,6 +161,9 @@ def init(self, pcr, config, csv, np):
         #-read init processes HSPF
         self.hspf.init(self, pcr, config)
 
+    # #-read init processes sediment transport
+    # self.roughness.init_2(self, pcr, config)
+
 #-dynamic erosion processes
 def dynamic(self, pcr, np, Precip, Q_m3, Q_mm):
     #-determine canopy cover from LAI
@@ -197,22 +172,22 @@ def dynamic(self, pcr, np, Precip, Q_m3, Q_mm):
     else:
         self.CC = self.CC_table
 
-    #-determine areas that have been harvested
-    if self.harvest_FLAG:
-        self.Harvested = self.ones * 0
-        self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
-        self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
-        self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
+    # #-determine areas that have been harvested
+    # if self.harvest_FLAG:
+    #     self.Harvested = self.ones * 0
+    #     self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
+    #     self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
+    #     self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
     
-    #-set canopy cover to value from MMF harvest table for months between harvest and sowing
-    if self.DynVegFLAG == 0 and self.harvest_FLAG:
-        self.CC = pcr.ifthenelse(self.Harvested == 1, self.CC_harvest, self.CC_table)
+    # #-set canopy cover to value from MMF harvest table for months between harvest and sowing
+    # if self.DynVegFLAG == 0 and self.harvest_FLAG:
+    #     self.CC = pcr.ifthenelse(self.Harvested == 1, self.CC_harvest, self.CC_table)
 
-    #-set ground cover to value from MMF harvest table for months between harvest and sowing
-    if self.harvest_FLAG:
-        self.GC = pcr.ifthenelse(self.Harvested == 1, self.GC_harvest, self.GC_table)
-    else:
-        self.GC = self.GC_table
+    # #-set ground cover to value from MMF harvest table for months between harvest and sowing
+    # if self.harvest_FLAG:
+    #     self.GC = pcr.ifthenelse(self.Harvested == 1, self.GC_harvest, self.GC_table)
+    # else:
+    #     self.GC = self.GC_table
     
     #-define cover as  fraction of soil covered by ground cover and rock
     if self.SnowFLAG == 1:
@@ -221,11 +196,11 @@ def dynamic(self, pcr, np, Precip, Q_m3, Q_mm):
     else:
         self.Cover = pcr.min(self.GC + self.RockFrac, 1)
 
-    #-update plant height for months between harvest and sowing
-    if self.harvest_FLAG:
-        self.PlantHeightUpdate = pcr.ifthenelse(self.Harvested == 1, self.PlantHeight_harvest, self.PlantHeight)
-    else:
-        self.PlantHeightUpdate = self.PlantHeight
+    # #-update plant height for months between harvest and sowing
+    # if self.harvest_FLAG:
+    #     self.PlantHeightUpdate = pcr.ifthenelse(self.Harvested == 1, self.PlantHeight_harvest, self.PlantHeight)
+    # else:
+    #     self.PlantHeightUpdate = self.PlantHeight
 
     #-MUSLE
     if self.ErosionModel == 1:

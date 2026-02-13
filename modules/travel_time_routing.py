@@ -121,8 +121,23 @@ def flow_velocity_iteration(self, pcr, qOld):
         self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
 
         #-Determine hillslope roughness and assign to hillslopes (both channel and floodplain)
-        if self.ErosionFLAG:
-            self.roughness.dynamic(self, pcr)
+        if self.ErosionFLAG and self.ErosionModel == 2:
+            #-determine areas that have been harvested
+            if self.harvest_FLAG:
+                self.Harvested = self.ones * 0
+                self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
+                self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
+                self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
+            
+            #-Determine Manning's roughness for in-field deposition
+            self.n_field, self.n_field_harvest = self.mmf.manningField(self, pcr, self.waterDepth)
+
+            #-replace roughness for vegetated conditions for tilled soil conditions in case of harvested areas
+            if self.harvest_FLAG:
+                self.manningHillslope = pcr.ifthenelse(self.Harvested == 1, self.n_field_harvest, self.n_field)
+            else:
+                self.manningHillslope = self.n_field
+
         else:
             self.manningHillslope = self.manningRill
         
@@ -132,7 +147,7 @@ def flow_velocity_iteration(self, pcr, qOld):
 
         #-Update channel manning when conservation module is used
         if self.SedTransFLAG:
-            if self.conservationFLAG == 1:
+            if self.ConservationFLAG == 1:
                 self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
 
         #-Determine flow velocity (m/day)
