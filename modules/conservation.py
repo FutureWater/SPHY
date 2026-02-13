@@ -54,7 +54,7 @@ def pedotransfer(self, pcr, config):
 #     self.BufferFLAG = np.any(np.unique(pcr.pcr2numpy(self.structuralMap, -9999)) == 2)
 
 #-setup ponds using the reservoir module
-def ponds_initial(self, pcr, config):
+def ponds_init(self, pcr, config):
     #-read change in organic matter map and multiply with rootzone OM map
     # self.input.input(self, config, pcr, 'ponds', 'CONSERVATION', 'ponds', 0)
     self.pondsID = pcr.cover(self.ponds, 0)
@@ -101,7 +101,7 @@ def ponds_initial(self, pcr, config):
         self.QFRAC = pcr.ifthenelse(self.ponds, pcr.scalar(0), self.QFRAC)
 
 #-Determine reinfiltration in ponds
-def ponds_reinfiltration(self, pcr):
+def ponds_reinfiltration(self, pcr, config):
     #-Determine relative saturation
     relSat = pcr.min(pcr.max(self.RootWater / self.RootSat, 0), 1)
     
@@ -116,6 +116,51 @@ def ponds_reinfiltration(self, pcr):
     self.RootWater += pcr.upstream(self.FlowDir, infilPond / pcr.cellarea() * 1e3)
 
     return infilPond / pcr.cellarea() * 1e3
+
+
+#-input parameters for cover crops
+def cover_crops_init(self, pcr, config):
+    #-in case cover crops are applied
+    if self.coverCropsFLAG == 1:
+        #-read cover crops map
+        self.CoverCrops = pcr.readmap(self.inpath + config.get('CONSERVATION', 'coverCrops'))
+    
+        #-read table with cover crops input parameters per cover crop class
+        pcr.setglobaloption('matrixtable')
+        cover_crops_table = self.inpath + config.get('CONSERVATION', 'coverCrops_table')
+        self.Sowing_CC = pcr.lookupscalar(cover_crops_table, 1, self.CoverCrops)
+        self.Harvest_CC = pcr.lookupscalar(cover_crops_table, 2, self.CoverCrops)
+        self.PlantHeight_CC = pcr.lookupscalar(cover_crops_table, 3, self.CoverCrops)
+        self.NoElements_CC = pcr.lookupscalar(cover_crops_table, 4, self.CoverCrops)
+        self.Diameter_CC = pcr.lookupscalar(cover_crops_table, 5, self.CoverCrops)
+        self.GC_CC = pcr.lookupscalar(cover_crops_table, 6, self.CoverCrops)
+        pcr.setglobaloption('columntable')
+
+        #-Determine manning for in field deposition
+        manningHillslopeVegetation = self.mmf.manningVegetation(self.d_field, self.Diameter_CC, self.NoElements_CC)
+        self.n_field_CC = (self.n_soil**2 + manningHillslopeVegetation**2)**0.5
+
+        #-Determine flow velocity for in field deposition
+        self.v_field_CC = self.mmf.FlowVelocity(self, pcr, self.n_field_CC, self.d_field)
+
+
+#-dynamic processes for cover crops
+def cover_crops_dynamic(self, pcr):
+    #-determine areas that have been harvested
+    self.Harvested_CC = self.ones * 0
+    self.Harvested_CC = pcr.ifthenelse(self.Harvest_CC < self.Sowing_CC, pcr.ifthenelse(pcr.pcrand(self.Harvest_CC < self.curdate.timetuple().tm_yday, self.Sowing_CC > self.curdate.timetuple().tm_yday), 1, self.Harvested_CC), self.Harvested_CC)
+    self.Harvested_CC = pcr.ifthenelse(self.Harvest_CC > self.Sowing_CC, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest_CC, self.curdate.timetuple().tm_yday < self.Sowing_CC), 1, self.Harvested_CC), self.Harvested_CC)
+    self.Harvested_CC = pcr.ifthenelse(self.Harvest_CC == 0, 0, self.Harvested_CC)
+    self.Harvested_CC = pcr.cover(self.Harvested_CC, 0)
+    
+    #-set ground cover to cover crop value for months between sowing and harvest of cover crops
+    self.GC = pcr.ifthenelse(pcr.pcrand(self.CoverCrops > 0, self.Harvested_CC == 0), self.GC_CC, self.GC)
+
+    #-set plant height to cover crop value for months between sowing and harvest of cover crops
+    self.PlantHeightUpdate = pcr.ifthenelse(pcr.pcrand(self.CoverCrops > 0, self.Harvested_CC == 0), self.PlantHeight_CC, self.PlantHeightUpdate)
+
+    #-set flow velocity to cover crop value for months between sowing and harvest of cover crops
+    self.v_update = pcr.ifthenelse(pcr.pcrand(self.CoverCrops > 0, self.Harvested_CC == 0), self.v_field_CC, self.v_update)
 
 
 # #-sediment transport conservation

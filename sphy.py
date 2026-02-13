@@ -153,11 +153,13 @@ class sphy(pcrm.DynamicModel):
 			self.conservation = modules.conservation
 			del modules.conservation
 
-			#-read ponds map and set ponds flag to 1 in case of ponds
-			self.input.input(self, config, pcr, 'ponds', 'CONSERVATION', 'ponds', 0)
-			self.PondsFLAG = np.any(np.unique(pcr.pcr2numpy(self.ponds, -9999)) > 0)
+			#-read conservation flags
+			self.pondsFLAG = config.getint('CONSERVATION', 'pondsFLAG')
+			self.coverCropsFLAG = config.getint('CONSERVATION', 'coverCropsFLAG')
 		else:
-			self.PondsFLAG = False
+			#-set conservation flags to 0
+			self.pondsFLAG = 0
+			self.coverCropsFLAG = 0
 
 		#-read soil maps
 		#-check for PedotransferFLAG
@@ -392,7 +394,7 @@ class sphy(pcrm.DynamicModel):
 				self.travel_time_routing.init(self, pcr, pcrm, config, np)
 
 		#-read and set routing maps and parameters
-		if self.ResFLAG == 1 or self.LakeFLAG == 1 or self.PondsFLAG:
+		if self.ResFLAG == 1 or self.LakeFLAG == 1 or self.pondsFLAG:
 			#-import advanced routing module
 			import modules.advanced_routing
 			self.advanced_routing = modules.advanced_routing
@@ -465,6 +467,11 @@ class sphy(pcrm.DynamicModel):
 
 			#-read init processes sediment transport
 			self.erosion.init(self, pcr, config, csv, np)
+
+			#-read maps and parameters for conservation
+			if self.ConservationFLAG == 1 and self.ErosionModel == 2:
+				#-execute init processes
+				self.conservation.cover_crops_init(self, pcr, config)
 
 			#-read input parameters for sediment transport module
 			if self.SedTransFLAG == 1:
@@ -591,8 +598,8 @@ class sphy(pcrm.DynamicModel):
 				self.advanced_routing.initial(self, pcr, config)
 
 		#-Check if ponds are included in the structural conservation
-		if self.ConservationFLAG == 1 and self.PondsFLAG:
-			self.conservation.ponds_initial(self, pcr, config)
+		if self.ConservationFLAG == 1 and self.pondsFLAG:
+			self.conservation.ponds_init(self, pcr, config)
 
 		#-Initial values for reporting and setting of time-series
 		#-set time-series reporting for mm flux from upstream area for prec and eta
@@ -756,7 +763,7 @@ class sphy(pcrm.DynamicModel):
 	    #-Updated rootwater content
 		self.RootWater = pcr.ifthenelse(RainFrac > 0, self.RootWater + Infil, self.RootWater)
 		#-Apply reinfiltration for ponds
-		if self.PondsFLAG and self.ReInfiltrationFLAG == 1:
+		if self.pondsFLAG and self.ReInfiltrationFLAG == 1:
 			reInfil = self.conservation.ponds_reinfiltration(self, pcr)
 			Infil += reInfil
 		#-Report infiltration
@@ -948,7 +955,7 @@ class sphy(pcrm.DynamicModel):
 		#-Soil erosion
 		if self.ErosionFLAG == 1:
 			#-determine runoff in mm per day as input for the soil erosion module
-			if self.travelTimeFLAG == 1:
+			if self.RoutedRunoffFLAG == 0 or self.travelTimeFLAG == 1:
 				#-detachment by runoff is modelled as sheet erosion (with local runoff as input) when travel time routing is used
 				Q_mm = TotR
 				Q_m3 = TotR / (3600 * 24) * pcr.cellarea() / 1000
