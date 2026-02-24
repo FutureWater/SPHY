@@ -154,12 +154,18 @@ class sphy(pcrm.DynamicModel):
 			del modules.conservation
 
 			#-read conservation flags
+			self.changeOMFLAG = config.getint('CONSERVATION', 'changeOMFLAG')
+			self.changeBDFLAG = config.getint('CONSERVATION', 'changeBDFLAG')
 			self.pondsFLAG = config.getint('CONSERVATION', 'pondsFLAG')
 			self.coverCropsFLAG = config.getint('CONSERVATION', 'coverCropsFLAG')
+			self.checkDamsFLAG = config.getint('CONSERVATION', 'checkDamsFLAG')
 		else:
 			#-set conservation flags to 0
+			self.changeOMFLAG = 0
+			self.changeBDFLAG = 0
 			self.pondsFLAG = 0
 			self.coverCropsFLAG = 0
+			self.checkDamsFLAG = 0
 
 		#-read soil maps
 		#-check for PedotransferFLAG
@@ -971,10 +977,10 @@ class sphy(pcrm.DynamicModel):
 				#-read dynamic sediment transport processes
 				self.sediment_transport.dynamic(self, pcr, np, Q, Sed)
 
-				#-morphodynamics
-				if self.MorphodynamicsFLAG == 1:
-					#-read dynamic morphodynamics processes
-					self.morphodynamics.dynamic(self, pcr, pcrm, np, Q, Sed)
+				# #-morphodynamics
+				# if self.MorphodynamicsFLAG == 1:
+				# 	#-read dynamic morphodynamics processes
+				# 	self.morphodynamics.dynamic(self, pcr, pcrm, np, Q, Sed)
 
 		#-update current date
 		self.curdate = self.curdate + self.datetime.timedelta(days=1)

@@ -22,13 +22,17 @@ print('conservation module imported')
 
 #-pedotransfer conservation
 def pedotransfer(self, pcr, config):
-    #-read change in organic matter map and multiply with rootzone OM map
-    self.input.input(self, config, pcr, 'changeOM', 'CONSERVATION', 'changeOM', 0)
-    self.RootOMMap = self.RootOMMap * (1 + self.changeOM / 100)
+    #-in of changing organic matter is applied
+    if self.changeOMFLAG == 1:
+        #-read change in organic matter map and multiply with rootzone OM map
+        self.input.input(self, config, pcr, 'changeOM', 'CONSERVATION', 'changeOM', 0)
+        self.RootOMMap = self.RootOMMap * (1 + self.changeOM / 100)
 
-    #-read change in bulk density map and multiply with rootzone BD map
-    self.input.input(self, config, pcr, 'changeBD', 'CONSERVATION', 'changeBD', 0)
-    self.RootBulkMap = self.RootBulkMap * (1 + self.changeBD / 100)
+    #-in of changing bulk density is applied
+    if self.changeBDFLAG == 1:
+        #-read change in bulk density map and multiply with rootzone BD map
+        self.input.input(self, config, pcr, 'changeBD', 'CONSERVATION', 'changeBD', 0)
+        self.RootBulkMap = self.RootBulkMap * (1 + self.changeBD / 100)
 
 
 # #-structural measures

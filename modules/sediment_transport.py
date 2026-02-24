@@ -33,6 +33,87 @@ def TC(self, pcr, runoff):
     TCSubcatchment = pcr.cover(TCSubcatchment, 0)
     return TC
 
+#-Sediment transport
+def SedTrans(self, pcr, np, sed, TC):
+    #-determine sediment transport without reservoirs
+    if self.checkDamsFLAG == 0:
+        #-rout sediment based on transport capacity
+        sedimentFlux = pcr.accucapacityflux(self.FlowDir, sed, TC)
+        sedDep = pcr.accucapacitystate(self.FlowDir, sed, TC)
+        sedimentYield = self.ones * 0
+
+    #-determine sediment transport with reservoirs
+    else:
+        #-store sed in sedTrans to be used in routing algorithm
+        sedTrans = sed
+
+        #-initiate empty map to be used in for-loop
+        sedimentYield = self.ones * 0
+        sedimentFlux = self.ones * 0
+        subFinished = self.ones * 0
+        sedDep = self.ones * 0
+
+        #-increase the transport capacity in the reservoir cells such that all sediment is transported towards the end of the reservoir
+        if self.ResFLAG == 1:
+            TC = pcr.ifthenelse(pcr.scalar(self.sedResId) > 0, 1e10, TC)
+
+        #-Determine total soil erosion
+        sedTotal = np.sum(pcr.pcr2numpy(sed, 0))
+
+        #-Only rout sediment when soil erosion > 0
+        if (sedTotal > 0):
+            #-loop through the catchments, rout sediment and determine sedimentation in reservoirs based on trapping efficiency
+            for step in self.reservoirStepsArray: #-for-loop through the steps
+                #-determine the reservoirs for this step
+                reservoirs = np.unique(pcr.pcr2numpy(pcr.ifthen(self.reservoirStep == int(step), self.sedResId), -9999))[1:]
+
+                #-set TC in finished subcatchments to 0
+                TC = pcr.ifthenelse(subFinished == 1, 0, TC)
+
+                #-rout sediment based on transport capacity
+                sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
+                sedTransCapState = pcr.accucapacitystate(self.FlowDir, sedTrans, TC)
+
+                #-initiate empty map to be used in for-loop
+                stepBool = self.ones * 0
+
+                #-for-loop through the reservoirs per step
+                for reservoir in reservoirs:
+                    #-create boolean map with location of reservoir
+                    reservoirBool = pcr.scalar(pcr.ifthenelse(self.sedResId == int(reservoir), pcr.scalar(1), pcr.scalar(0)))
+
+                    #-extract routed sediment value at the reservoir from sedTransCapFlux
+                    reservoirFluxTC = pcr.ifthen(reservoirBool == 1, sedTransCapFlux)
+
+                    #-store trapped sediment in sedimentYield (multiply routed sediment value with trapping efficiency to be stored in reservoir cell)
+                    sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.TrappingEff, sedimentYield)
+
+                    #-update subFinished and give subcatchment cells value 1
+                    subFinished = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(reservoir), pcr.scalar(1), subFinished)
+
+                    #-update sedTrans, set all subcatchment cells to 0
+                    sedTrans = pcr.ifthenelse(pcr.scalar(subFinished) == 1, 0, sedTrans)
+
+                    #-add reservoir outflow to cell downstream of reservoir (multiply routed sediment value with outflow efficiency)
+                    sedTrans = sedTrans + pcr.upstream(self.FlowDir, pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.OutflowEff, pcr.scalar(0)))
+
+                    #-create boolean map with location of reservoir
+                    stepBool = stepBool + pcr.scalar(pcr.ifthenelse(self.subcatchmentRes == int(reservoir), self.subcatchmentRes == int(reservoir), pcr.boolean(0)))
+
+                #-store sedTransCapFlux in sedimentFlux
+                sedimentFlux = sedTransCapFlux * subFinished + sedimentFlux
+
+                #-store sedTransCapState in sedDep
+                sedDep = sedDep + sedTransCapState * stepBool
+
+            #-rout sediment based on transport capacity
+            sedTransCapFlux = pcr.accucapacityflux(self.FlowDir, sedTrans, TC)
+
+            # store sedTransCapFlux in sedimentFlux
+            sedimentFlux = sedTransCapFlux * (1 - subFinished) + sedimentFlux
+    
+    return sedimentYield, sedDep, sedimentFlux
+
 #-init processes
 def init(self, pcr, config, csv, np):
     #-init processes when reservoir module is used
@@ -76,7 +157,14 @@ def init(self, pcr, config, csv, np):
         self.d_TC = config.getfloat('SEDIMENT_TRANS', 'depthTC')
 
     #-Define sediment size classes
-    self.sedimentClasses = ['Clay', 'Silt', 'Sand', 'Gravel']
+    if self.MorphodynamicsFLAG == 1:
+        self.sedimentClasses = ['Clay', 'Silt', 'Sand', 'Gravel']
+    else:
+        self.sedimentClasses = ['Clay', 'Silt', 'Sand']
+        self.TCGravel = 0
+        self.sedDepGravel = 0
+        self.sedYieldGravel = 0
+        self.sedFluxGravel = 0
 
     #-define some constants
     self.g = 9.81
@@ -100,7 +188,7 @@ def init(self, pcr, config, csv, np):
             self.input.input(self, config, pcr, 'manningChannel', 'ROUTING', 'channelManning', 0)
 
         #-Determine flow velocity for transport capacity calculation
-        self.n_veg_TC = self.roughness.manningVegetation(self.d_TC, self.Diameter, self.NoElements)
+        self.n_veg_TC = self.mmf.manningVegetation(self.d_TC, self.Diameter, self.NoElements)
         self.n_veg_TC = pcr.ifthenelse(self.NoVegetation == 1, 0, self.n_veg_TC)
         self.n_veg_TC = pcr.ifthenelse(self.NoErosion == 1, 0, self.n_veg_TC)
         self.n_veg_TC = pcr.ifthenelse(self.n_table > 0, self.n_table, self.n_veg_TC)
@@ -113,7 +201,7 @@ def init(self, pcr, config, csv, np):
 
         #-Determine flow velocity after harvest, manning for tilled conditions is used
         if self.harvest_FLAG:
-            self.n_veg_TC_harvest = self.roughness.manningVegetation(self.d_field, self.Diameter_harvest, self.NoElements_harvest)
+            self.n_veg_TC_harvest = self.mmf.manningVegetation(self.d_field, self.Diameter_harvest, self.NoElements_harvest)
             self.n_veg_TC_harvest = pcr.ifthenelse(self.Tillage_harvest == 1, 0, self.n_field_harvest)
             self.n_TC_harvest = (self.n_soil**2 + self.n_veg_TC_harvest**2)**0.5
 
@@ -195,6 +283,7 @@ def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
 
 #-dynamic sediment transport processes
 def dynamic(self, pcr, np, Q, Sed):
+    #-determine sediment transport
     if self.SedTransEquation == 6:
         #-change the flow factor for harvested areas to actual and tillage conditions
         if self.harvest_FLAG == 1:
@@ -210,10 +299,13 @@ def dynamic(self, pcr, np, Q, Sed):
         Runoff = (Q * 3600 * 24) / pcr.cellarea() * 1000
 
         #-determine transport capacity
-        self.TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
+        TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
 
-        #-report the transport capacity
-        self.reporting.reporting(self, pcr, 'TC', self.TC)
+        # #-report the transport capacity
+        # self.reporting.reporting(self, pcr, 'TC', self.TC)
+    
+        #-determine sediment yield at stations
+        sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, Sed, TC)
 
     else:
         # #-in case travel time is not used
@@ -231,22 +323,14 @@ def dynamic(self, pcr, np, Q, Sed):
             #-Define median grain size for sediment class
             D50 = getattr(self, "delta" + sedimentClass)
 
-            #-Determine transport capacity of the flow (g/l)
-            if self.travelTimeFLAG == 1:
-                TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquation)
-            else:
-                TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, h, l, Q, D50, self.Slope, self.SedTransEquation)
+            #-Determine transport capacity of the flow in the channels (g/l)
+            TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquation)
 
-            #-Determine transport capacity in the rills when rills are simulated
-            if self.travelTimeFLAG == 1:
-                #-Determine transport capacity of the flow (g/l)
-                if self.travelTimeFLAG == 1:
-                    TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquationRills)
-                else:
-                    TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, h, l, Q, D50, self.Slope, self.SedTransEquationRills)
+            #-Determine transport capacity of the flow in the rills (g/l)
+            TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquationRills)
 
-                #-Update transport capacity for the hillslopes
-                TC = pcr.ifthenelse(self.channelHillslope == 2, TC_Rills, TC)
+            #-Update transport capacity for the hillslopes
+            TC = pcr.ifthenelse(self.channelHillslope == 2, TC_Rills, TC)
 
             #-apply maximum allowable sediment concentration (g/l = kg/m3)
             TC = pcr.min(TC, self.SedConcMax)
@@ -260,8 +344,68 @@ def dynamic(self, pcr, np, Q, Sed):
             #-report TC per sediment class
             self.reporting.reporting(self, pcr, 'TC' + sedimentClass, pcr.scalar(getattr(self, "TC" + sedimentClass)))
 
-        #-sum TC for all fractions
-        TC = self.TCClay + self.TCSilt + self.TCSand + self.TCGravel
+            #-When MMF is used, obtain hillslope erosion per sediment class from attribute
+            if sedimentClass == 'Gravel':
+                Sed = self.ones * 0
+            else:
+                if self.ErosionModel == 2:
+                    #-Get hillslope erosion by sediment class fraction from MMF
+                    Sed = getattr(self, "Sed" + sedimentClass)
+                else:
+                    #-Multiply hillslope erosion by sediment class fraction
+                    Sed = Sed * getattr(self, "Root" + sedimentClass + "Map")
 
-        #-report the transport capacity (ton/day)
-        self.reporting.reporting(self, pcr, 'TC', TC)
+            #-determine sediment transport
+            if self.MorphodynamicsFLAG == 0:
+                #-determine total amount available for transport
+                material = Sed
+            else:
+                #-determine initial sediment store
+                sedimentStoreInitial = getattr(self, "sedimentStoreInitial" + sedimentClass) #-reset channel storage to initial value
+
+                #-determine total amount available for transport
+                material = sedimentStoreInitial + Sed
+
+            #-route sediment through the catchment
+            sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, material, TC)
+
+            #-Assign sediment yield, deposition and flux values to sediment class
+            setattr(self, "sedYield" + sedimentClass, sedYield)
+            setattr(self, "sedDep" + sedimentClass, sedDep)
+            setattr(self, "sedFlux" + sedimentClass, sedFlux)
+
+            #-determine sediment transport
+            if self.MorphodynamicsFLAG == 1:
+                #-determine channel change
+                channelChange = sedDep - sedimentStoreInitial
+
+                #-Assign channel change values to sediment class
+                setattr(self, "channelChange" + sedimentClass, channelChange)
+
+        #-determine sum of transport capacity, deposition, yield and flux over the different sediment classes (ton/day)
+        TC = self.TCClay + self.TCSilt + self.TCSand + self.TCGravel
+        sedDep = self.sedDepClay + self.sedDepSilt + self.sedDepSand + self.sedDepGravel
+        sedYield = self.sedYieldClay + self.sedYieldSilt + self.sedYieldSand + self.sedYieldGravel
+        sedFlux = self.sedFluxClay + self.sedFluxSilt + self.sedFluxSand + self.sedFluxGravel
+
+    #-report the transport capacity (ton/day)
+    self.reporting.reporting(self, pcr, 'TC', TC)
+
+    #-report the sediment deposition by transport capacity (ton/day)
+    self.reporting.reporting(self, pcr, 'SedDep', sedDep)
+
+    #-report sediment yield in the stations (ton/day)
+    self.reporting.reporting(self, pcr, 'SedYld', sedYield)
+
+    #-report sediment flux in the stations (ton/day)
+    self.reporting.reporting(self, pcr, 'SedFlux', sedFlux)
+
+    #-report sediment concentration in the stations (g/l)
+    sedConcentration = pcr.cover(sedFlux / (Q * 3600 * 24 * 1e-3), 0)
+    self.reporting.reporting(self, pcr, 'SedConc', sedConcentration)
+
+    #-determine sediment transport
+    if self.MorphodynamicsFLAG == 1:
+        #-determine total channel change
+        channelChange = self.channelChangeClay + self.channelChangeSilt + self.channelChangeSand + self.channelChangeGravel
+        self.reporting.reporting(self, pcr, 'ChChng', channelChange)
