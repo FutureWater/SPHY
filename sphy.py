@@ -157,14 +157,14 @@ class sphy(pcrm.DynamicModel):
 			self.changeOMFLAG = config.getint('CONSERVATION', 'changeOMFLAG')
 			self.changeBDFLAG = config.getint('CONSERVATION', 'changeBDFLAG')
 			self.pondsFLAG = config.getint('CONSERVATION', 'pondsFLAG')
-			self.coverCropsFLAG = config.getint('CONSERVATION', 'coverCropsFLAG')
+			self.vegetationCoverFLAG = config.getint('CONSERVATION', 'vegetationCoverFLAG')
 			self.checkDamsFLAG = config.getint('CONSERVATION', 'checkDamsFLAG')
 		else:
 			#-set conservation flags to 0
 			self.changeOMFLAG = 0
 			self.changeBDFLAG = 0
 			self.pondsFLAG = 0
-			self.coverCropsFLAG = 0
+			self.vegetationCoverFLAG = 0
 			self.checkDamsFLAG = 0
 
 		#-read soil maps
@@ -477,7 +477,7 @@ class sphy(pcrm.DynamicModel):
 			#-read maps and parameters for conservation
 			if self.ConservationFLAG == 1 and self.ErosionModel == 2:
 				#-execute init processes
-				self.conservation.cover_crops_init(self, pcr, config)
+				self.conservation.vegetation_cover_init(self, pcr, config)
 
 			#-read input parameters for sediment transport module
 			if self.SedTransFLAG == 1:
@@ -900,6 +900,11 @@ class sphy(pcrm.DynamicModel):
 
 		#-Normal routing module
 		elif self.RoutFLAG == 1:
+			#-in case of conservation with vegetation cover
+			if self.vegetationCoverFLAG == 1:
+                #-determine areas that have been harvested
+				self.conservation.vegetation_cover_dynamic_harvested(self, pcr)
+			
 			#-read dynamic processes normal routing
 			if self.travelTimeFLAG == 1:
 				Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)

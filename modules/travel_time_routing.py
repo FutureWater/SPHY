@@ -138,17 +138,29 @@ def flow_velocity_iteration(self, pcr, qOld):
             else:
                 self.manningHillslope = self.n_field
 
+            #-in case of conservation with vegetation cover
+            if self.vegetationCoverFLAG == 1:
+                #-set hillslope mannning to vegetation cover value for months between sowing and harvest of vegetation cover
+                self.manningHillslope = pcr.ifthenelse(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.n_field_VC, self.n_field)
+
         else:
             self.manningHillslope = self.manningRill
         
+        #-in case of conservation with vegetation cover
+        if self.vegetationCoverFLAG == 1:
+            #-set hillslope mannning to vegetation cover value for months between sowing and harvest of vegetation cover
+            self.manningRillUpdate = pcr.ifthenelse(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.n_field_VC, self.manningRill)
+        else:
+            self.manningRillUpdate = self.manningRill
+        
         #-Update channel and floodplain manning
-        self.manningChannel = pcr.ifthenelse(self.channelHillslope == 2, self.manningRill, self.manningChannel)
+        self.manningChannel = pcr.ifthenelse(self.channelHillslope == 2, self.manningRillUpdate, self.manningChannel)
         self.manningFP = pcr.ifthenelse(self.channelHillslope == 2, self.manningHillslope, self.manningFP)
 
-        #-Update channel manning when conservation module is used
-        if self.SedTransFLAG:
-            if self.ConservationFLAG == 1:
-                self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
+        # #-Update channel manning when conservation module is used
+        # if self.SedTransFLAG:
+        #     if self.ConservationFLAG == 1:
+        #         self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
 
         #-Determine flow velocity (m/day)
         flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)

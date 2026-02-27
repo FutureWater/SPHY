@@ -292,32 +292,19 @@ def dynamic(self, pcr, np, Q, Sed):
             self.roughnessFactorUpdate = self.roughnessFactor
 
         #-overwrite roughness factor with the value for structural conservation measures
-        if self.ConservationFLAG == 1:
-            self.roughnessFactorUpdate = pcr.ifthenelse(self.conservationMeasures > 0, self.v_TC_conservation / self.v_b, self.roughnessFactorUpdate)
+        if self.vegetationCoverFLAG == 1:
+            self.roughnessFactorUpdate = pcr.ifthenelse(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.v_field_VC / self.v_b, self.roughnessFactorUpdate)
         
         #-determine runoff
         Runoff = (Q * 3600 * 24) / pcr.cellarea() * 1000
 
         #-determine transport capacity
         TC = self.mmf.TransportCapacity(self, pcr, self.roughnessFactorUpdate, self.RootClayMap + self.RootSiltMap + self.RootSandMap, Runoff)
-
-        # #-report the transport capacity
-        # self.reporting.reporting(self, pcr, 'TC', self.TC)
     
         #-determine sediment yield at stations
         sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, Sed, TC)
 
     else:
-        # #-in case travel time is not used
-        # if self.travelTimeFLAG == 0:
-        #     #-import SHETRAN module
-        #     import modules.shetran
-        #     self.shetran = modules.shetran
-        #     del modules.shetran
-
-        #     #-determine water depth (m) and flow depth (m)
-        #     h, l = self.shetran.Manning(self, pcr, Q, self.n_TC, self.WD_ratio_SHETRAN, self.Slope)
-
         #-For loop over the sediment classes
         for sedimentClass in self.sedimentClasses:
             #-Define median grain size for sediment class

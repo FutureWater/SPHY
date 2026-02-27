@@ -238,9 +238,9 @@ def dynamic(self, pcr, Precip, Runoff):
     else:
         self.v_update = self.v_field
 
-    #-in case cover crops are applied
-    if self.coverCropsFLAG == 1:
-        self.conservation.cover_crops_dynamic(self, pcr)
+    #-in case vegetation cover are applied
+    if self.vegetationCoverFLAG == 1:
+        self.conservation.vegetation_cover_dynamic_mmf(self, pcr)
 
     #-determine effective rainfall
     Rf = self.mmf.RainEff(self, pcr, Precip)
