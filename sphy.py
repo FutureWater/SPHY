@@ -158,14 +158,14 @@ class sphy(pcrm.DynamicModel):
 			self.changeBDFLAG = config.getint('CONSERVATION', 'changeBDFLAG')
 			self.pondsFLAG = config.getint('CONSERVATION', 'pondsFLAG')
 			self.vegetationCoverFLAG = config.getint('CONSERVATION', 'vegetationCoverFLAG')
-			self.checkDamsFLAG = config.getint('CONSERVATION', 'checkDamsFLAG')
+			# self.checkDamsFLAG = config.getint('CONSERVATION', 'checkDamsFLAG')
 		else:
 			#-set conservation flags to 0
 			self.changeOMFLAG = 0
 			self.changeBDFLAG = 0
 			self.pondsFLAG = 0
 			self.vegetationCoverFLAG = 0
-			self.checkDamsFLAG = 0
+			# self.checkDamsFLAG = 0
 
 		#-read soil maps
 		#-check for PedotransferFLAG

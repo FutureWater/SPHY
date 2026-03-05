@@ -134,7 +134,7 @@ def init(self, pcr, pcrm, config, csv, np):
     #     self.SedReservoirsFLAG = 0
 
     #-init processes when reservoir module is used
-    if self.checkDamsFLAG == 1:
+    if self.pondsFLAG == 1:
         #-nominal map with reservoir IDs and extent
         if self.ResFLAG == 1:
             self.sedResId = self.ResID

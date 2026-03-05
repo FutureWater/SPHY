@@ -36,7 +36,7 @@ def TC(self, pcr, runoff):
 #-Sediment transport
 def SedTrans(self, pcr, np, sed, TC):
     #-determine sediment transport without reservoirs
-    if self.checkDamsFLAG == 0:
+    if self.pondsFLAG == 0:
         #-rout sediment based on transport capacity
         sedimentFlux = pcr.accucapacityflux(self.FlowDir, sed, TC)
         sedDep = pcr.accucapacitystate(self.FlowDir, sed, TC)
@@ -86,7 +86,7 @@ def SedTrans(self, pcr, np, sed, TC):
                     reservoirFluxTC = pcr.ifthen(reservoirBool == 1, sedTransCapFlux)
 
                     #-store trapped sediment in sedimentYield (multiply routed sediment value with trapping efficiency to be stored in reservoir cell)
-                    sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.TrappingEff, sedimentYield)
+                    sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.pondTrappEff, sedimentYield)
 
                     #-update subFinished and give subcatchment cells value 1
                     subFinished = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(reservoir), pcr.scalar(1), subFinished)

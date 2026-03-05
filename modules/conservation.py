@@ -72,6 +72,7 @@ def ponds_init(self, pcr, config):
     self.pondDepth = pcr.lookupscalar(ponds_table, 1, self.pondsID)
     self.pondArea = pcr.lookupscalar(ponds_table, 2, self.pondsID)
     self.pondKr = pcr.lookupscalar(ponds_table, 3, self.pondsID)
+    self.pondTrappEff = pcr.cover(pcr.lookupscalar(ponds_table, 4, self.pondsID), 0)
     pcr.setglobaloption('columntable')
 
     if self.ResFLAG == 0:
@@ -103,9 +104,38 @@ def ponds_init(self, pcr, config):
         self.ResFunc = pcr.ifthenelse(self.ponds, 1, self.ResFunc)
         self.StorRES = pcr.ifthenelse(self.ponds, self.ResSmax * 0.5, self.StorRES)
         self.QFRAC = pcr.ifthenelse(self.ponds, pcr.scalar(0), self.QFRAC)
+    
+    #-init processes when reservoir module is used
+    if self.SedTransFLAG == 1:
+        #-nominal map with reservoir IDs and extent
+        # if self.ResFLAG == 1:
+        self.sedResId = self.ResID
+        # else:
+        #     self.sedResId = pcr.readmap(self.inpath + config.get('MORPHODYNAMICS', 'sedRes'))
+        self.sedResId = pcr.cover(self.sedResId, 0)
+
+        #-define map where reservoirs are located (=1)
+        self.sedRes = pcr.ifthenelse(pcr.scalar(self.sedResId) > 0, pcr.scalar(1), pcr.scalar(0))
+
+        # #-read table with the trapping efficiency per reservoir
+        # self.TrapEffTab = self.inpath + config.get('MORPHODYNAMICS', 'TrapEffTab')
+        # self.TrappingEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.sedResId), 0)
+
+        #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
+        self.OutflowEff = pcr.cover(1-self.pondTrappEff, 1)
+
+        #-determine subcatchment map
+        self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.sedResId)
+
+        #-determine steps per reservoir
+        self.reservoirStep = pcr.ifthen(self.sedRes == 1, pcr.accuflux(self.FlowDir, self.sedRes) * self.sedRes)
+
+        #-determine unique steps
+        self.reservoirStepsArray = np.unique(pcr.pcr2numpy(self.reservoirStep, 1))
+
 
 #-Determine reinfiltration in ponds
-def ponds_reinfiltration(self, pcr, config):
+def ponds_reinfiltration(self, pcr):
     #-Determine relative saturation
     relSat = pcr.min(pcr.max(self.RootWater / self.RootSat, 0), 1)
     
