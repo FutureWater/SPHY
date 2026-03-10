@@ -283,12 +283,6 @@ def dynamic(self, pcr, Precip, Runoff):
     #-report detachment of soil particles by runoff (ton / cell)
     self.reporting.reporting(self, pcr, 'DetRun', H * pcr.cellarea() / 1000)
 
-    # #-replace velocity for vegetated conditions for tilled soil conditions in case of harvested areas
-    # if self.harvest_FLAG:
-    #     self.v_update = pcr.ifthenelse(self.Harvested == 1, self.v_field_harvest, self.v_field)
-    # else:
-    #     self.v_update = self.v_field
-
     #-determine particle fall number
     N_f_c = self.mmf.ParticleFallNumber(self, pcr, self.deltaClay, self.v_update, self.d_field)
     N_f_z = self.mmf.ParticleFallNumber(self, pcr, self.deltaSilt, self.v_update, self.d_field)
