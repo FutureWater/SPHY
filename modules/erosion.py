@@ -18,24 +18,10 @@
 print('erosion module imported')
 
 
-#-Determine the number of rills per meter
-def numberOfRills(pcr, Flow, MC, S, RR, Re):
-    N = 0.66 + 0.69 * pcr.ln(Flow) + 0.91 * pcr.ln(MC) + 2.04 * pcr.ln(S) - 0.37 * pcr.ln(RR) - 0.37 * pcr.ln(Re)
-    return N
-
-# #-Determine rill dimensions based on minimum and maximum rill size
-# def rillDimensions(pcr, self):
-#     #-Determine maximum accuflux on the hillslopes
-#     rill = self.channelHillslope == 1
-#     accufluxMax = pcr.areamaximum(pcr.accuflux(self.FlowDir, 1), rill)
-    
-#     #-Determine fraction of accuflux with respect to maximum accuflux on hillslope
-#     accufluxFraction = pcr.accuflux(self.FlowDir, 1) / accufluxMax
-
-#     #-Determine rill width based on minimum and maximum rill size
-#     rillWidth = self.minRillWidth + (self.maxRillWidth - self.minRillWidth) * accufluxFraction
-
-#     return rillWidth
+# #-Determine the number of rills per meter
+# def numberOfRills(pcr, Flow, MC, S, RR, Re):
+#     N = 0.66 + 0.69 * pcr.ln(Flow) + 0.91 * pcr.ln(MC) + 2.04 * pcr.ln(S) - 0.37 * pcr.ln(RR) - 0.37 * pcr.ln(Re)
+#     return N
 
 #-init processes erosion module
 def init(self, pcr, config, csv, np):
@@ -59,47 +45,6 @@ def init(self, pcr, config, csv, np):
         #-determine upstream area larger than upstream_km2 and define hillslope cells based on upstream area
         self.Upstream_km2 = config.getfloat('EROSION', 'upstream_km2')
         self.Hillslope = pcr.scalar(self.UpstreamArea <= self.Upstream_km2)
-
-    #-nominal map with reservoir IDs and extent
-    if self.ResFLAG == 1:
-        if self.ETOpenWaterFLAG == 1:
-            self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.openWaterNominal) > 0, pcr.scalar(1), pcr.scalar(0))
-            self.Reservoirs = pcr.cover(self.Reservoirs, 0)
-        else:
-            # self.Reservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
-            self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.ResID) > 0, pcr.scalar(1), pcr.scalar(0))
-            self.Reservoirs = pcr.cover(self.Reservoirs, 0)
-        self.NoErosion = pcr.min(self.NoErosion + pcr.scalar(self.Reservoirs), 1)
-
-    # #-Read rill flag
-    # self.RillFLAG = config.getint('EROSION', 'RillFLAG')
-
-    # #-If rill flag is equal to 1 than calculate rill dimensions and adjust floodplain width and channel depth
-    # if self.RillFLAG == 1 and self.travelTimeFLAG == 1:
-    #     #-Read min and max rill width
-    #     self.minRillWidth = config.getfloat('EROSION', 'minRillWidth')
-    #     self.maxRillWidth = config.getfloat('EROSION', 'maxRillWidth')
-
-    #     #-Determine rill width based on min and max and set rill depth equal to rill width
-    #     self.rillWidth = self.erosion.rillDimensions(pcr, self)
-    #     self.rillDepth = self.rillWidth
-
-    #     #-Set floodplain width to cell width for hillslope cells
-    #     self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
-
-    #     #-Set channel depth to rill depth for hillslope cells
-    #     self.channelDepth = pcr.ifthenelse(self.channelHillslope == 2, self.rillDepth, self.channelDepth)
-
-    #     #-Set channel width to rill width for hillslope cells
-    #     self.channelWidth = pcr.ifthenelse(self.channelHillslope == 2, self.rillWidth, self.channelWidth)
-
-    # #-import roughness module
-    # import modules.roughness
-    # self.roughness = modules.roughness
-    # del modules.roughness
-
-    # #-read init processes sediment transport
-    # self.roughness.init(self, pcr, config)
 
     #-read MUSLE input parameters
     if self.ErosionModel == 1:
@@ -161,8 +106,16 @@ def init(self, pcr, config, csv, np):
         #-read init processes HSPF
         self.hspf.init(self, pcr, config)
 
-    # #-read init processes sediment transport
-    # self.roughness.init_2(self, pcr, config)
+    #-nominal map with reservoir IDs and extent
+    if self.ResFLAG == 1:
+        if self.ETOpenWaterFLAG == 1:
+            self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.openWaterNominal) > 0, pcr.scalar(1), pcr.scalar(0))
+            self.Reservoirs = pcr.cover(self.Reservoirs, 0)
+        else:
+            # self.Reservoirs = pcr.readmap(self.inpath + config.get('RESERVOIR', 'reservoirs'))
+            self.Reservoirs = pcr.ifthenelse(pcr.scalar(self.ResID) > 0, pcr.scalar(1), pcr.scalar(0))
+            self.Reservoirs = pcr.cover(self.Reservoirs, 0)
+        self.NoErosion = pcr.min(self.NoErosion + pcr.scalar(self.Reservoirs), 1)
 
 #-dynamic erosion processes
 def dynamic(self, pcr, np, Precip, Q_m3, Q_mm):
@@ -172,35 +125,12 @@ def dynamic(self, pcr, np, Precip, Q_m3, Q_mm):
     else:
         self.CC = self.CC_table
 
-    # #-determine areas that have been harvested
-    # if self.harvest_FLAG:
-    #     self.Harvested = self.ones * 0
-    #     self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
-    #     self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
-    #     self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
-    
-    # #-set canopy cover to value from MMF harvest table for months between harvest and sowing
-    # if self.DynVegFLAG == 0 and self.harvest_FLAG:
-    #     self.CC = pcr.ifthenelse(self.Harvested == 1, self.CC_harvest, self.CC_table)
-
-    # #-set ground cover to value from MMF harvest table for months between harvest and sowing
-    # if self.harvest_FLAG:
-    #     self.GC = pcr.ifthenelse(self.Harvested == 1, self.GC_harvest, self.GC_table)
-    # else:
-    #     self.GC = self.GC_table
-    
     #-define cover as  fraction of soil covered by ground cover and rock
     if self.SnowFLAG == 1:
         SCover = pcr.scalar(self.TotalSnowStore > 0)
         self.Cover = pcr.min(SCover + self.GC + self.RockFrac, 1)
     else:
         self.Cover = pcr.min(self.GC + self.RockFrac, 1)
-
-    # #-update plant height for months between harvest and sowing
-    # if self.harvest_FLAG:
-    #     self.PlantHeightUpdate = pcr.ifthenelse(self.Harvested == 1, self.PlantHeight_harvest, self.PlantHeight)
-    # else:
-    #     self.PlantHeightUpdate = self.PlantHeight
 
     #-MUSLE
     if self.ErosionModel == 1:

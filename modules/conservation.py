@@ -35,28 +35,6 @@ def pedotransfer(self, pcr, config):
         self.RootBulkMap = self.RootBulkMap * (1 + self.changeBD / 100)
 
 
-# #-structural measures
-# def structural(self, pcr, config):
-#     #-read change in organic matter map and multiply with rootzone OM map
-#     self.input.input(self, config, pcr, 'structuralMap', 'CONSERVATION', 'structural', 0)
-#     self.structuralMap = pcr.cover(self.structuralMap, 0)
-#     self.ReInfiltrationFLAG = config.getint('CONSERVATION', 'ReInfiltrationFLAG')
-#     self.ReInfil_b = config.getfloat('CONSERVATION', 'ReInfil_b')
-
-#     #-read table with conservation input parameters per conservation measure class
-#     pcr.setglobaloption('matrixtable')
-#     structural_table = self.inpath + config.get('CONSERVATION', 'structural_table')
-#     self.structuralType = pcr.lookupscalar(structural_table, 1, self.structuralMap)
-#     self.pondDepth = pcr.lookupscalar(structural_table, 2, self.structuralMap)
-#     self.pondArea = pcr.lookupscalar(structural_table, 3, self.structuralMap)
-#     self.NoElements_conservation = pcr.lookupscalar(structural_table, 4, self.structuralMap)
-#     self.Diameter_conservation = pcr.lookupscalar(structural_table, 5, self.structuralMap)
-#     self.n_table_conservation = pcr.lookupscalar(structural_table, 6, self.structuralMap)
-#     pcr.setglobaloption('columntable')
-
-#     self.PondsFLAG = np.any(np.unique(pcr.pcr2numpy(self.structuralMap, -9999)) == 1)
-#     self.BufferFLAG = np.any(np.unique(pcr.pcr2numpy(self.structuralMap, -9999)) == 2)
-
 #-setup ponds using the reservoir module
 def ponds_init(self, pcr, config):
     #-read change in organic matter map and multiply with rootzone OM map
@@ -78,6 +56,7 @@ def ponds_init(self, pcr, config):
     if self.ResFLAG == 0:
         #-turn on reservoir module
         self.ResFLAG = 1
+        self.PondsAndReservoirs = 0
 
         #-import reservoirs module
         import modules.reservoirs
@@ -94,45 +73,22 @@ def ponds_init(self, pcr, config):
         self.ResFunc = pcr.cover(pcr.scalar(self.ponds), 0)
         self.StorRES = self.ResSmax * 0.5
         self.QFRAC = pcr.cover(pcr.ifthen(self.ponds, pcr.scalar(0)), 1)
+        self.reservoirTrappEff = self.ones * 0
     else:
         #-define reservoir parameters for ponds
+        self.PondsAndReservoirs = 1
         self.ResSimple = True
         self.ResKr = pcr.ifthenelse(self.ponds, self.pondKr, self.ResKr)
         self.ResB = pcr.ifthenelse(self.ponds, self.ones * 1.5, self.ResB)
         self.ResSmax = pcr.ifthenelse(self.ponds, self.pondDepth * self.pondArea, self.ResSmax)
         self.ResID = pcr.nominal(pcr.ifthenelse(pcr.cover(self.ponds, 0), np.max(pcr.pcr2numpy(self.ResID, -9999)) + pcr.scalar(pcr.cover(self.pondsID, 0)), pcr.scalar(self.ResID)))
         self.ResFunc = pcr.ifthenelse(self.ponds, 1, self.ResFunc)
+
+#-setup ponds using the reservoir module
+def ponds_initial(self, pcr):
+    if self.ResFLAG == 1:
         self.StorRES = pcr.ifthenelse(self.ponds, self.ResSmax * 0.5, self.StorRES)
         self.QFRAC = pcr.ifthenelse(self.ponds, pcr.scalar(0), self.QFRAC)
-    
-    #-init processes when reservoir module is used
-    if self.SedTransFLAG == 1:
-        #-nominal map with reservoir IDs and extent
-        # if self.ResFLAG == 1:
-        self.sedResId = self.ResID
-        # else:
-        #     self.sedResId = pcr.readmap(self.inpath + config.get('MORPHODYNAMICS', 'sedRes'))
-        self.sedResId = pcr.cover(self.sedResId, 0)
-
-        #-define map where reservoirs are located (=1)
-        self.sedRes = pcr.ifthenelse(pcr.scalar(self.sedResId) > 0, pcr.scalar(1), pcr.scalar(0))
-
-        # #-read table with the trapping efficiency per reservoir
-        # self.TrapEffTab = self.inpath + config.get('MORPHODYNAMICS', 'TrapEffTab')
-        # self.TrappingEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.sedResId), 0)
-
-        #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
-        self.OutflowEff = pcr.cover(1-self.pondTrappEff, 1)
-
-        #-determine subcatchment map
-        self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.sedResId)
-
-        #-determine steps per reservoir
-        self.reservoirStep = pcr.ifthen(self.sedRes == 1, pcr.accuflux(self.FlowDir, self.sedRes) * self.sedRes)
-
-        #-determine unique steps
-        self.reservoirStepsArray = np.unique(pcr.pcr2numpy(self.reservoirStep, 1))
-
 
 #-Determine reinfiltration in ponds
 def ponds_reinfiltration(self, pcr):
@@ -190,41 +146,11 @@ def vegetation_cover_dynamic_harvested(self, pcr):
 
 #-dynamic processes for vegetation cover
 def vegetation_cover_dynamic_mmf(self, pcr):
-    # #-determine areas that have been harvested
-    # self.Harvested_VC = self.ones * 0
-    # self.Harvested_VC = pcr.ifthenelse(self.Harvest_VC < self.Sowing_VC, pcr.ifthenelse(pcr.pcrand(self.Harvest_VC < self.curdate.timetuple().tm_yday, self.Sowing_VC > self.curdate.timetuple().tm_yday), 1, self.Harvested_VC), self.Harvested_VC)
-    # self.Harvested_VC = pcr.ifthenelse(self.Harvest_VC > self.Sowing_VC, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest_VC, self.curdate.timetuple().tm_yday < self.Sowing_VC), 1, self.Harvested_VC), self.Harvested_VC)
-    # self.Harvested_VC = pcr.ifthenelse(self.Harvest_VC == 0, 0, self.Harvested_VC)
-    # self.Harvested_VC = pcr.cover(self.Harvested_VC, 0)
-    
     #-set ground cover to vegetation cover value for months between sowing and harvest of vegetation cover
-    pcr.report(self.GC, self.outpath + "GC_1.map")
     self.GC = pcr.ifthenelse(pcr.pcrand(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.strip_VC == 0), self.GC_VC, self.GC)
-    pcr.report(self.GC, self.outpath + "GC_2.map")
-    # exit()
 
     #-set plant height to vegetation cover value for months between sowing and harvest of vegetation cover
     self.PlantHeightUpdate = pcr.ifthenelse(pcr.pcrand(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.strip_VC == 0), self.PlantHeight_VC, self.PlantHeightUpdate)
 
     #-set flow velocity to vegetation cover value for months between sowing and harvest of vegetation cover
     self.v_update = pcr.ifthenelse(pcr.pcrand(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.strip_VC == 0), self.v_field_VC, self.v_update)
-
-
-# #-sediment transport conservation
-# def sediment_transport(self, pcr, config):
-#     #-read conservation measures map
-#     self.input.input(self, config, pcr, 'conservationMeasures', 'CONSERVATION', 'conservationMeasures', 0)
-
-#     #-read table with conservation input parameters per conservation measure class
-#     pcr.setglobaloption('matrixtable')
-#     CONSERVATION_table = self.inpath + config.get('CONSERVATION', 'CONSERVATION_table')
-#     self.NoElements_conservation = pcr.lookupscalar(CONSERVATION_table, 1, self.conservationMeasures)
-#     self.Diameter_conservation = pcr.lookupscalar(CONSERVATION_table, 2, self.conservationMeasures)
-#     self.n_table_conservation = pcr.lookupscalar(CONSERVATION_table, 3, self.conservationMeasures)
-#     pcr.setglobaloption('columntable')
-
-#     #-Determine flow velocity for conservation measures
-#     self.n_veg_TC_conservation = self.roughness.manningVegetation(self.d_field, self.Diameter_conservation, self.NoElements_conservation)
-#     self.n_veg_TC_conservation = pcr.ifthenelse(self.n_table_conservation > 0, self.n_table_conservation, self.n_veg_TC_conservation)
-#     self.n_TC_conservation = (self.n_soil**2 + self.n_veg_TC_conservation**2)**0.5
-#     self.v_TC_conservation = self.mmf.FlowVelocity(self, pcr, self.n_TC_conservation, self.d_TC)

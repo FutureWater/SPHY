@@ -92,6 +92,12 @@ def init(self, pcr, config):
         self.ResAdvanced = False
     pcr.setglobaloption('columntable')
 
+    #-read trapping efficiency in case sediment transport module is used
+    if self.SedTransFLAG == 1:
+        #-read table with the trapping efficiency per reservoir
+        self.TrapEffTab = self.inpath + config.get('SEDIMENT_TRANS', 'TrapEffTab')
+        self.reservoirTrappEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.ResID), 0)
+
 #-initial conditions reservoirs
 def initial(self, pcr, config):
     ResStor_Tab = self.inpath + config.get('RESERVOIR', 'ResFuncStor')

@@ -158,14 +158,13 @@ class sphy(pcrm.DynamicModel):
 			self.changeBDFLAG = config.getint('CONSERVATION', 'changeBDFLAG')
 			self.pondsFLAG = config.getint('CONSERVATION', 'pondsFLAG')
 			self.vegetationCoverFLAG = config.getint('CONSERVATION', 'vegetationCoverFLAG')
-			# self.checkDamsFLAG = config.getint('CONSERVATION', 'checkDamsFLAG')
 		else:
 			#-set conservation flags to 0
 			self.changeOMFLAG = 0
 			self.changeBDFLAG = 0
 			self.pondsFLAG = 0
+			self.PondsAndReservoirs = 0
 			self.vegetationCoverFLAG = 0
-			# self.checkDamsFLAG = 0
 
 		#-read soil maps
 		#-check for PedotransferFLAG
@@ -464,6 +463,10 @@ class sphy(pcrm.DynamicModel):
 			except:
 				self.pavedFrac = 0
 
+		#-Check if ponds are included in the structural conservation
+		if self.ConservationFLAG == 1 and self.pondsFLAG:
+			self.conservation.ponds_init(self, pcr, config)
+
 		#-read maps and parameters for soil erosion
 		if self.ErosionFLAG == 1:
 			#-import erosion module
@@ -498,7 +501,6 @@ class sphy(pcrm.DynamicModel):
 
 					#-read init processes sediment transport
 					self.morphodynamics.init(self, pcr, pcrm, config, csv, np)
-
 
 		#-set the global option for radians
 		pcr.setglobaloption('radians')
@@ -602,10 +604,10 @@ class sphy(pcrm.DynamicModel):
 			if self.travelTimeFLAG == 0:
 				#-read init processes advanced routing
 				self.advanced_routing.initial(self, pcr, config)
-
-		#-Check if ponds are included in the structural conservation
-		if self.ConservationFLAG == 1 and self.pondsFLAG:
-			self.conservation.ponds_init(self, pcr, config)
+			
+			if self.PondsAndReservoirs == 1:
+				#-read initial conditions in case reservoirs and ponds are used
+				self.conservation.ponds_initial(self, pcr)		
 
 		#-Initial values for reporting and setting of time-series
 		#-set time-series reporting for mm flux from upstream area for prec and eta

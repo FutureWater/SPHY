@@ -36,7 +36,7 @@ def TC(self, pcr, runoff):
 #-Sediment transport
 def SedTrans(self, pcr, np, sed, TC):
     #-determine sediment transport without reservoirs
-    if self.pondsFLAG == 0:
+    if self.ResFLAG == 0:
         #-rout sediment based on transport capacity
         sedimentFlux = pcr.accucapacityflux(self.FlowDir, sed, TC)
         sedDep = pcr.accucapacitystate(self.FlowDir, sed, TC)
@@ -86,7 +86,7 @@ def SedTrans(self, pcr, np, sed, TC):
                     reservoirFluxTC = pcr.ifthen(reservoirBool == 1, sedTransCapFlux)
 
                     #-store trapped sediment in sedimentYield (multiply routed sediment value with trapping efficiency to be stored in reservoir cell)
-                    sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.pondTrappEff, sedimentYield)
+                    sedimentYield = pcr.ifthenelse(reservoirBool == 1, reservoirFluxTC * self.TrappingEff, sedimentYield)
 
                     #-update subFinished and give subcatchment cells value 1
                     subFinished = pcr.ifthenelse(pcr.scalar(self.subcatchmentRes) == int(reservoir), pcr.scalar(1), subFinished)
@@ -111,7 +111,7 @@ def SedTrans(self, pcr, np, sed, TC):
 
             # store sedTransCapFlux in sedimentFlux
             sedimentFlux = sedTransCapFlux * (1 - subFinished) + sedimentFlux
-    
+
     return sedimentYield, sedDep, sedimentFlux
 
 #-init processes
@@ -131,6 +131,32 @@ def init(self, pcr, config, csv, np):
     self.omega_cr_Govers = config.getfloat('SEDIMENT_TRANS', 'omega_cr_Govers')
     self.Y_cr_Abrahams = config.getfloat('SEDIMENT_TRANS', 'Y_cr_Abrahams')
     self.SedConcMax = config.getfloat('SEDIMENT_TRANS', 'SedConcMax')
+
+    #-init processes when reservoir module is used
+    if self.ResFLAG == 1:
+        #-define map where reservoirs are located (=1)
+        self.sedRes = pcr.ifthenelse(pcr.scalar(self.ResID) > 0, pcr.scalar(1), pcr.scalar(0))
+
+        #-nominal map with reservoir IDs and extent
+        self.sedResId = pcr.cover(pcr.nominal(pcr.order(pcr.ifthen(self.sedRes > 0, self.ones))), 0)
+
+        #-define trapping efficiency map
+        if self.pondsFLAG:
+            self.TrappingEff = self.reservoirTrappEff + self.pondTrappEff
+        else:
+            self.TrappingEff = self.reservoirTrappEff
+
+        #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
+        self.OutflowEff = pcr.cover(1-self.TrappingEff, 1)
+
+        #-determine subcatchment map
+        self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.sedResId)
+
+        #-determine steps per reservoir
+        self.reservoirStep = pcr.ifthen(self.sedRes == 1, pcr.accuflux(self.FlowDir, self.sedRes) * self.sedRes)
+
+        #-determine unique steps
+        self.reservoirStepsArray = np.unique(pcr.pcr2numpy(self.reservoirStep, 1))
 
     #-set sediment equation to 6 in case travel time algorithm is not used
     if self.travelTimeFLAG == 0:
@@ -219,9 +245,6 @@ def init(self, pcr, config, csv, np):
         #-read WD ratio for water depth and flow velocity calculation
         self.WD_ratio_SHETRAN = config.getfloat('SHETRAN', 'WD_ratio')
 
-    # #-read sediment transport conservation
-    # if self.ConservationFLAG == 1:
-    #     self.conservation.sediment_transport(self, pcr, config)
 
 #-Determine transport capacity (g/l)
 def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
