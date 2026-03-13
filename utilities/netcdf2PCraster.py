@@ -19,9 +19,7 @@ import subprocess
 import netCDF4 as nc 
 import os
 import numpy as np
-import csv
 from scipy.interpolate import griddata
-from scipy import spatial
 from scipy.spatial import distance
 from pyproj import Transformer
 from math import *

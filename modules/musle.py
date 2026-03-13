@@ -20,9 +20,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-# Equations to calculate sediment yield accoding to the soil loss equation (Williams, 1995)
-# from rootzone import RootRunoff
-
 print('MUSLE module imported')
 
 #-Modified unviversal soil loss equation to calculate sediment yield (metric tons)

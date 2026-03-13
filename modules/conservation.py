@@ -15,8 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import numpy as np
-
 print('conservation module imported')
 
 
@@ -36,7 +34,7 @@ def pedotransfer(self, pcr, config):
 
 
 #-setup ponds using the reservoir module
-def ponds_init(self, pcr, config):
+def ponds_init(self, pcr, config, np):
     #-read change in organic matter map and multiply with rootzone OM map
     self.input.input(self, config, pcr, 'ponds', 'CONSERVATION', 'ponds', 0)
     self.pondsID = pcr.cover(self.ponds, 0)

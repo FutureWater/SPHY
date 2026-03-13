@@ -242,9 +242,6 @@ def init(self, pcr, config, csv, np):
         #-Determine roughness factor for transport capacity calculation
         self.roughnessFactor = self.v_TC / self.v_b
 
-        #-read WD ratio for water depth and flow velocity calculation
-        self.WD_ratio_SHETRAN = config.getfloat('SHETRAN', 'WD_ratio')
-
 
 #-Determine transport capacity (g/l)
 def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
