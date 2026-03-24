@@ -158,6 +158,7 @@ class sphy(pcrm.DynamicModel):
 			self.changeBDFLAG = config.getint('CONSERVATION', 'changeBDFLAG')
 			self.pondsFLAG = config.getint('CONSERVATION', 'pondsFLAG')
 			self.vegetationCoverFLAG = config.getint('CONSERVATION', 'vegetationCoverFLAG')
+			self.landUseChangeFLAG = config.getint('CONSERVATION', 'landUseChangeFLAG')
 		else:
 			#-set conservation flags to 0
 			self.changeOMFLAG = 0
@@ -165,6 +166,14 @@ class sphy(pcrm.DynamicModel):
 			self.pondsFLAG = 0
 			self.PondsAndReservoirs = 0
 			self.vegetationCoverFLAG = 0
+			self.landUseChangeFLAG = 0
+
+		#-read land use map
+		self.LandUse = pcr.readmap(self.inpath + config.get('LANDUSE','LandUse'))
+
+		#-apply init land use change processes in case land use change is being simulated
+		if self.landUseChangeFLAG == 1:
+			self.conservation.land_use_change_init(self, pcr, np, config)
 
 		#-read soil maps
 		#-check for PedotransferFLAG
@@ -222,9 +231,6 @@ class sphy(pcrm.DynamicModel):
 				self.GWL_base = config.getfloat('SOILPARS','GWL_base')
 
 			self.SubDrainVel = self.SubKsat * self.Slope
-
-		#-read land use map
-		self.LandUse = pcr.readmap(self.inpath + config.get('LANDUSE','LandUse'))
 
 		#-read the p factor table if the plant water stress module is used
 		self.PlantWaterStressFLAG = config.getint('PWS','PWS_FLAG')

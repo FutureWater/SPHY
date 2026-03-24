@@ -152,3 +152,43 @@ def vegetation_cover_dynamic_mmf(self, pcr):
 
     #-set flow velocity to vegetation cover value for months between sowing and harvest of vegetation cover
     self.v_update = pcr.ifthenelse(pcr.pcrand(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.strip_VC == 0), self.v_field_VC, self.v_update)
+
+#-input parameters for land use change
+def land_use_change_init(self, pcr, np, config):
+    #-read land use change map
+    self.landUseChange = pcr.readmap(self.inpath + config.get('CONSERVATION', 'LandUseChange'))
+
+    #-store original land use map
+    self.LandUseOriginal = self.LandUse
+
+    #-apply land use change to land use map
+    self.LandUse = pcr.ifthenelse(self.landUseChange > 0, self.landUseChange, self.LandUseOriginal)
+
+    #-determine the land use change classes
+    self.landUseChangeClasses = np.unique(pcr.pcr2numpy(self.landUseChange, np.nan))
+
+    #-remove nan and 0
+    self.landUseChangeClasses = self.landUseChangeClasses[~np.isnan(self.landUseChangeClasses)]
+    self.landUseChangeClasses = self.landUseChangeClasses[self.landUseChangeClasses != 0] 
+
+    
+#-dynamic processes for land use change
+def land_use_change_dynamic(self, pcr, map, landuse, landusechange, landusechangeclasses):
+    #-determine average map per land use class
+    map_avg = pcr.areaaverage(map, pcr.nominal(landuse * pcr.scalar(self.clone)))
+    
+    #-determine the anomaly from average map per land use class 
+    map_anomaly = map - map_avg
+    
+    #-for-loop over the land use change classes
+    for cls in landusechangeclasses:
+        #-determine the average map for the class
+        map_avg_class = pcr.mapmaximum(pcr.ifthen(self.LandUse == int(cls), map_avg))
+        
+        #-apply average to changed land use
+        map = pcr.ifthenelse(landusechange == int(cls), map_avg_class, map)
+
+        #-add map anomaly to change land use
+        map = pcr.ifthenelse(landusechange == int(cls), map + map_anomaly, map)
+
+    return map

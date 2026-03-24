@@ -91,6 +91,9 @@ def init(self, pcr, config, np):
     self.RootClayMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','RootClayMap')) / 100
     self.RootSiltMap = 1 - self.RootSandMap - self.RootClayMap
     self.RootOMMap = pcr.readmap(self.inpath + config.get('PEDOTRANSFER','RootOMMap'))
+    #-in case of land use change
+    if self.landUseChangeFLAG == 1:
+        self.RootOMMap = self.conservation.land_use_change_dynamic(self, pcr, self.RootOMMap, self.LandUseOriginal, self.landUseChange, self.landUseChangeClasses)
     try:
         self.RootBulkMap = config.getfloat('PEDOTRANSFER','RootBulkMap') * self.ones
     except:

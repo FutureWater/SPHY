@@ -106,6 +106,9 @@ def dynamic(self, pcr, pcrm, np, Precip, ETref):
     ndvi = pcr.cover(ndvi, pcr.areaaverage(ndvi, self.clone))
     #-set maximum value to 0.999
     ndvi = pcr.min(ndvi, 0.999)
+    #-in case of land use change
+    if self.landUseChangeFLAG == 1:
+        ndvi = self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUseOriginal, self.landUseChange, self.landUseChangeClasses)
     #-Report ndvi
     self.reporting.reporting(self, pcr, 'NDVI', ndvi)
 
