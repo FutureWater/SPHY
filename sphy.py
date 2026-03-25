@@ -171,10 +171,14 @@ class sphy(pcrm.DynamicModel):
 		#-read land use map
 		self.LandUse = pcr.readmap(self.inpath + config.get('LANDUSE','LandUse'))
 
+		#-apply init vegetation cover processes in case vegetation cover is being simulated
+		if self.vegetationCoverFLAG == 1:
+			self.conservation.vegetation_cover_init(self, pcr, np, config)
+
 		#-apply init land use change processes in case land use change is being simulated
 		if self.landUseChangeFLAG == 1:
 			self.conservation.land_use_change_init(self, pcr, np, config)
-
+		
 		#-read soil maps
 		#-check for PedotransferFLAG
 		self.PedotransferFLAG = config.getint('PEDOTRANSFER', 'PedotransferFLAG')
@@ -496,9 +500,9 @@ class sphy(pcrm.DynamicModel):
 			self.erosion.init(self, pcr, config, csv, np)
 
 			#-read maps and parameters for conservation
-			if self.ConservationFLAG == 1 and self.ErosionModel == 2:
+			if self.vegetationCoverFLAG == 1 and self.ErosionModel == 2:
 				#-execute init processes
-				self.conservation.vegetation_cover_init(self, pcr, config)
+				self.conservation.vegetation_cover_init_mmf(self, pcr)
 
 			#-read input parameters for sediment transport module
 			if self.SedTransFLAG == 1:
@@ -718,6 +722,11 @@ class sphy(pcrm.DynamicModel):
 		self.reporting.reporting(self, pcr, 'TotETref', ETref)
 		self.reporting.reporting(self, pcr, 'TotETrefF', ETref * (1-self.GlacFrac))
 
+		#-in case of conservation with vegetation cover
+		if self.vegetationCoverFLAG == 1:
+			#-determine areas that have been harvested
+			self.conservation.vegetation_cover_dynamic_harvested(self, pcr)
+
 		#-Interception and effective precipitation
 		if self.DynVegFLAG == 1:
 			#-read dynamic processes dynamic vegetation
@@ -917,11 +926,6 @@ class sphy(pcrm.DynamicModel):
 
 		#-Normal routing module
 		elif self.RoutFLAG == 1:
-			#-in case of conservation with vegetation cover
-			if self.vegetationCoverFLAG == 1:
-                #-determine areas that have been harvested
-				self.conservation.vegetation_cover_dynamic_harvested(self, pcr)
-			
 			#-read dynamic processes normal routing
 			if self.travelTimeFLAG == 1:
 				Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)

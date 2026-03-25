@@ -109,6 +109,9 @@ def dynamic(self, pcr, pcrm, np, Precip, ETref):
     #-in case of land use change
     if self.landUseChangeFLAG == 1:
         ndvi = self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUseOriginal, self.landUseChange, self.landUseChangeClasses)
+    #-in case of vegetation cover
+    if self.vegetationCoverFLAG == 1:
+        ndvi = pcr.ifthenelse(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUse_VC, self.landUseChange_VC, self.landUseChangeClasses_VC), ndvi)
     #-Report ndvi
     self.reporting.reporting(self, pcr, 'NDVI', ndvi)
 

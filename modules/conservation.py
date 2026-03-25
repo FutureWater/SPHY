@@ -107,7 +107,7 @@ def ponds_reinfiltration(self, pcr):
 
 
 #-input parameters for vegetation cover
-def vegetation_cover_init(self, pcr, config):
+def vegetation_cover_init(self, pcr, np, config):
     #-in case vegetation cover are applied
     if self.vegetationCoverFLAG == 1:
         #-read vegetation cover map
@@ -123,14 +123,28 @@ def vegetation_cover_init(self, pcr, config):
         self.Diameter_VC = pcr.lookupscalar(vegetation_cover_table, 5, self.VegetationCover)
         self.GC_VC = pcr.lookupscalar(vegetation_cover_table, 6, self.VegetationCover)
         self.strip_VC = pcr.cover(pcr.lookupscalar(vegetation_cover_table, 7, self.VegetationCover), 0)
+        self.landUseChange_VC = pcr.cover(pcr.lookupscalar(vegetation_cover_table, 8, self.VegetationCover), 0)
         pcr.setglobaloption('columntable')
 
-        #-Determine manning for in field deposition
-        manningHillslopeVegetation = self.mmf.manningVegetation(self.d_field, self.Diameter_VC, self.NoElements_VC)
-        self.n_field_VC = (self.n_soil**2 + manningHillslopeVegetation**2)**0.5
+        #-store original land use map
+        self.LandUse_VC = self.LandUse
 
-        #-Determine flow velocity for in field deposition
-        self.v_field_VC = self.mmf.FlowVelocity(self, pcr, self.n_field_VC, self.d_field)
+        #-determine the land use change classes
+        self.landUseChangeClasses_VC = np.unique(pcr.pcr2numpy(self.landUseChange_VC, np.nan))
+
+        #-remove nan and 0
+        self.landUseChangeClasses_VC = self.landUseChangeClasses_VC[~np.isnan(self.landUseChangeClasses_VC)]
+        self.landUseChangeClasses_VC = self.landUseChangeClasses_VC[self.landUseChangeClasses_VC != 0]
+
+
+#-input parameters for vegetation cover for MMF
+def vegetation_cover_init_mmf(self, pcr):
+    #-Determine manning for in field deposition
+    manningHillslopeVegetation = self.mmf.manningVegetation(self.d_field, self.Diameter_VC, self.NoElements_VC)
+    self.n_field_VC = (self.n_soil**2 + manningHillslopeVegetation**2)**0.5
+
+    #-Determine flow velocity for in field deposition
+    self.v_field_VC = self.mmf.FlowVelocity(self, pcr, self.n_field_VC, self.d_field)
 
 #-dynamic processes for vegetation cover
 def vegetation_cover_dynamic_harvested(self, pcr):
