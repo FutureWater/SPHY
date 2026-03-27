@@ -46,33 +46,33 @@ def init(self, pcr, pcrm, config, csv, np):
         #-determine max channel depth
         self.channelDepthMax = self.channelDepth + self.bedThickness
 
-    #-init processes when reservoir module is used
-    if self.pondsFLAG == 1:
-        #-nominal map with reservoir IDs and extent
-        if self.ResFLAG == 1:
-            self.sedResId = self.ResID
-        else:
-            self.sedResId = pcr.readmap(self.inpath + config.get('MORPHODYNAMICS', 'sedRes'))
-        self.sedResId = pcr.cover(self.sedResId, 0)
+    # #-init processes when reservoir module is used
+    # if self.pondsFLAG == 1:
+    #     #-nominal map with reservoir IDs and extent
+    #     if self.ResFLAG == 1:
+    #         self.sedResId = self.ResID
+    #     else:
+    #         self.sedResId = pcr.readmap(self.inpath + config.get('MORPHODYNAMICS', 'sedRes'))
+    #     self.sedResId = pcr.cover(self.sedResId, 0)
 
-        #-define map where reservoirs are located (=1)
-        self.sedRes = pcr.ifthenelse(pcr.scalar(self.sedResId) > 0, pcr.scalar(1), pcr.scalar(0))
+    #     #-define map where reservoirs are located (=1)
+    #     self.sedRes = pcr.ifthenelse(pcr.scalar(self.sedResId) > 0, pcr.scalar(1), pcr.scalar(0))
 
-        #-read table with the trapping efficiency per reservoir
-        self.TrapEffTab = self.inpath + config.get('MORPHODYNAMICS', 'TrapEffTab')
-        self.TrappingEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.sedResId), 0)
+    #     #-read table with the trapping efficiency per reservoir
+    #     self.TrapEffTab = self.inpath + config.get('MORPHODYNAMICS', 'TrapEffTab')
+    #     self.TrappingEff = pcr.cover(pcr.lookupscalar(self.TrapEffTab, self.sedResId), 0)
 
-        #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
-        self.OutflowEff = pcr.cover(1-pcr.lookupscalar(self.TrapEffTab, self.sedResId), 1)
+    #     #-construct map where all cells have 1 and only the reservoir cells have trapping efficiency value obtained from the table
+    #     self.OutflowEff = pcr.cover(1-pcr.lookupscalar(self.TrapEffTab, self.sedResId), 1)
 
-        #-determine subcatchment map
-        self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.sedResId)
+    #     #-determine subcatchment map
+    #     self.subcatchmentRes = pcr.subcatchment(self.FlowDir, self.sedResId)
 
-        #-determine steps per reservoir
-        self.reservoirStep = pcr.ifthen(self.sedRes == 1, pcr.accuflux(self.FlowDir, self.sedRes) * self.sedRes)
+    #     #-determine steps per reservoir
+    #     self.reservoirStep = pcr.ifthen(self.sedRes == 1, pcr.accuflux(self.FlowDir, self.sedRes) * self.sedRes)
 
-        #-determine unique steps
-        self.reservoirStepsArray = np.unique(pcr.pcr2numpy(self.reservoirStep, 1))
+    #     #-determine unique steps
+    #     self.reservoirStepsArray = np.unique(pcr.pcr2numpy(self.reservoirStep, 1))
 
 
 #-initial morphodynamics processes
