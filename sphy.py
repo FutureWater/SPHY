@@ -659,7 +659,7 @@ class sphy(pcrm.DynamicModel):
 		if self.ResFLAG == 1 and config.getint('REPORTING', 'Res_wbal') == 1:
 			#-read initial conditions reporting reservoirs
 			self.reservoirs.initial_reporting(self, pcr, pcrm)
-		if self.MorphodynamicsFLAG == 1:
+		if self.ErosionFLAG == 1 and self.SedTransFLAG == 1 and self.MorphodynamicsFLAG == 1:
 			#-read initial conditions morphodynamics
 			self.morphodynamics.initial(self, pcr)
 
