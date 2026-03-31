@@ -43,7 +43,7 @@ def init(self, pcr, config, csv, np):
         self.UpstreamArea = pcr.accuflux(self.FlowDir, 1) * pcr.cellarea() / 10**6
 
         #-determine upstream area larger than upstream_km2 and define hillslope cells based on upstream area
-        self.Upstream_km2 = config.getfloat('EROSION', 'upstream_km2')
+        self.Upstream_km2 = config.getfloat('EROSION', 'upstream_km2_erosion')
         self.Hillslope = pcr.scalar(self.UpstreamArea <= self.Upstream_km2)
 
     #-read MUSLE input parameters
