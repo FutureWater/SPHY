@@ -60,10 +60,10 @@ def DetachmentRunoff(self, pcr, DR, texture, Q):
 
     return H
 
-#-Manning for tilled conditions (manningTilled; s/m1/3)
-def manningTillage(self, pcr):
-    manningTilled = pcr.exp(-2.1132 + 0.0349 * self.RFR)
-    return manningTilled
+# #-Manning for tilled conditions (manningTilled; s/m1/3)
+# def manningTillage(self, pcr):
+#     manningTilled = pcr.exp(-2.1132 + 0.0349 * self.RFR)
+#     return manningTilled
 
 #-Manning for vegetated conditions (manningVegetated; s/m1/3)
 def manningVegetation(waterDepth, diameter, noElements):
@@ -151,15 +151,17 @@ def init(self, pcr, config):
 
     #-read input parameters
     self.n_bare = config.getfloat('MMF', 'manningBare')
-    self.RFR = config.getfloat('MMF', 'RFR')
-    try:
-        self.n_tilled_fixed = config.getfloat('MMF', 'manningTillage')
-    except: 
-        self.n_tilled_fixed = ""
-    if self.n_tilled_fixed == "":
-        self.n_tilled = self.mmf.manningTillage(self, pcr)
-    else:
-        self.n_tilled = self.n_tilled_fixed * self.ones
+    # self.RFR = config.getfloat('MMF', 'RFR')
+    # try:
+    #     self.n_tilled_fixed = config.getfloat('MMF', 'manningTillage')
+    # except: 
+    #     self.n_tilled_fixed = ""
+    # if self.n_tilled_fixed == "":
+    #     self.n_tilled = self.mmf.manningTillage(self, pcr)
+    # else:
+    #     self.n_tilled = self.n_tilled_fixed * self.ones
+    self.n_tilled_fixed = config.getfloat('MMF', 'manningTillage')
+    self.n_tilled = self.n_tilled_fixed * self.ones
 
     #-read table with MMF input parameters per landuse class
     pcr.setglobaloption('matrixtable')
