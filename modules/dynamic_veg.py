@@ -99,20 +99,20 @@ def dynamic(self, pcr, pcrm, np, Precip, ETref):
             ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.counter))
         except:
             ndvi = pcr.readmap(pcrm.generateNameT(self.ndvi, self.curdate.timetuple().tm_yday))
+        #-fill missing ndvi values with average
+        ndvi = pcr.cover(ndvi, pcr.areaaverage(ndvi, self.clone))
+        #-set maximum value to 0.999
+        ndvi = pcr.min(ndvi, 0.999)
+        #-in case of land use change
+        if self.landUseChangeFLAG == 1:
+            ndvi = self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUseOriginal, self.landUseChange, self.landUseChangeClasses)
+        #-in case of vegetation cover
+        if self.vegetationCoverFLAG == 1:
+            ndvi_temp = pcr.ifthenelse(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUse_VC, self.landUseChange_VC, self.landUseChangeClasses_VC), ndvi)
+            ndvi = pcr.max(ndvi, ndvi_temp)
     except:
         ndvi = self.ndviOld
     self.ndviOld = ndvi
-    #-fill missing ndvi values with average
-    ndvi = pcr.cover(ndvi, pcr.areaaverage(ndvi, self.clone))
-    #-set maximum value to 0.999
-    ndvi = pcr.min(ndvi, 0.999)
-    #-in case of land use change
-    if self.landUseChangeFLAG == 1:
-        ndvi = self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUseOriginal, self.landUseChange, self.landUseChangeClasses)
-    #-in case of vegetation cover
-    if self.vegetationCoverFLAG == 1:
-        ndvi_temp = pcr.ifthenelse(pcr.pcrand(self.VegetationCover > 0, self.Harvested_VC == 0), self.conservation.land_use_change_dynamic(self, pcr, ndvi, self.LandUse_VC, self.landUseChange_VC, self.landUseChangeClasses_VC), ndvi)
-        ndvi = pcr.max(ndvi, ndvi_temp)
     #-Report ndvi
     self.reporting.reporting(self, pcr, 'NDVI', ndvi)
 
