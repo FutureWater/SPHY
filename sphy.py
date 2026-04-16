@@ -1,6 +1,6 @@
 # The Spatial Processes in HYdrology (SPHY) model:
 # A spatially distributed hydrological model
-# Copyright (C) 2013-2025  FutureWater
+# Copyright (C) 2013-2026  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
@@ -39,7 +39,7 @@ class sphy(pcrm.DynamicModel):
         # Print model info
         print("The Spatial Processes in HYdrology (SPHY) model is")
         print("developed and owned by FutureWater, Wageningen, The Netherlands")
-        print("Version 3.1, released September 2025")
+        print("Version 3.1.1, released April 2026")
         print(" ")
 
         # Missing value definition
@@ -785,29 +785,25 @@ class sphy(pcrm.DynamicModel):
                 pcrm.generateNameT(self.Tair, self.counter)
             ) + pcr.scalar(self.Tcorr_fact)
 
+        # -Read TempMin and TempMax always (required for sinusoidal melt in snow/glacier modules)
+        if self.TminNetcdfFLAG == 1:
+            TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(
+                self, pcr, "Tmin"
+            ) + pcr.scalar(self.Tcorr_fact)
+        else:
+            TempMin = pcr.readmap(
+                pcrm.generateNameT(self.Tmin, self.counter)
+            ) + pcr.scalar(self.Tcorr_fact)
+        if self.TmaxNetcdfFLAG == 1:
+            TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(
+                self, pcr, "Tmax"
+            ) + pcr.scalar(self.Tcorr_fact)
+        else:
+            TempMax = pcr.readmap(
+                pcrm.generateNameT(self.Tmax, self.counter)
+            ) + pcr.scalar(self.Tcorr_fact)
+
         if self.ETREF_FLAG == 0:
-            if self.TminNetcdfFLAG == 1:
-                # -read forcing by netcdf input
-                TempMin = self.netcdf2PCraster.netcdf2pcrDynamic(
-                    self, pcr, "Tmin"
-                ) + pcr.scalar(self.Tcorr_fact)
-            else:
-                # -read forcing by map input
-                TempMin = pcr.readmap(
-                    pcrm.generateNameT(self.Tmin, self.counter)
-                ) + pcr.scalar(self.Tcorr_fact)
-                # TempMin = pcr.readmap(pcrm.generateNameT(self.Tmin, self.curdate.timetuple().tm_yday))
-            if self.TmaxNetcdfFLAG == 1:
-                # -read forcing by netcdf input
-                TempMax = self.netcdf2PCraster.netcdf2pcrDynamic(
-                    self, pcr, "Tmax"
-                ) + pcr.scalar(self.Tcorr_fact)
-            else:
-                # -read forcing by map input
-                TempMax = pcr.readmap(
-                    pcrm.generateNameT(self.Tmax, self.counter)
-                ) + pcr.scalar(self.Tcorr_fact)
-                # TempMax = pcr.readmap(pcrm.generateNameT(self.Tmax, self.curdate.timetuple().tm_yday))
             ETref = self.Hargreaves.Hargreaves(
                 pcr, self.Hargreaves.extrarad(self, pcr), Temp, TempMax, TempMin
             )
@@ -850,7 +846,7 @@ class sphy(pcrm.DynamicModel):
                 GlacMelt,
                 GlacPerc,
                 self.GlacR,
-            ) = self.glacier.dynamic(self, pcr, pd, Temp, Precip)
+            ) = self.glacier.dynamic(self, pcr, pd, Temp, TempMin, TempMax, Precip)
         # -If glacier module is not used, then
         else:
             Rain_GLAC = 0
@@ -872,6 +868,7 @@ class sphy(pcrm.DynamicModel):
                 self,
                 pcr,
                 Temp,
+                TempMin,
                 TempMax,
                 Precip,
                 Snow_GLAC,

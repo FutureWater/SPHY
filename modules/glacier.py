@@ -1,6 +1,6 @@
 # The Spatial Processes in HYdrology (SPHY) model:
 # A spatially distributed hydrological model
-# Copyright (C) 2013-2025  FutureWater
+# Copyright (C) 2013-2026  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
@@ -57,7 +57,12 @@ def init(self, pcr, config, pd, np, os):
     cols = pd.DataFrame(
         columns=[
             "MOD_T",
+            "MOD_Tmin",
+            "MOD_Tmax",
             "GLAC_T",
+            "GLAC_Tmin",
+            "GLAC_Tmax",
+            "FracCold_GLAC",
             "Prec_GLAC",
             "Rain_GLAC",
             "Snow_GLAC",
@@ -253,7 +258,7 @@ def initial(self, pcr, pd):
 
 
 # -dynamic glacier processes
-def dynamic(self, pcr, pd, Temp, Precip):
+def dynamic(self, pcr, pd, Temp, TempMin, TempMax, Precip):
     # -1 dim array of Tavg map
     T_1d = pcr.pcr2numpy(Temp, self.MV).flatten()
     T = pd.DataFrame(
@@ -264,12 +269,30 @@ def dynamic(self, pcr, pd, Temp, Precip):
     T = None
     T_1d = None
     del T, T_1d
+    # -1 dim array of TempMin map
+    Tmin_1d = pcr.pcr2numpy(TempMin, self.MV).flatten()
+    Tmin = pd.DataFrame(
+        data={"MOD_Tmin": Tmin_1d[self.GlacierKeys]}, index=self.ModelID_1d[self.GlacierKeys]
+    )
+    self.GlacTable.update(Tmin)
+    Tmin = None
+    Tmin_1d = None
+    del Tmin, Tmin_1d
+    # -1 dim array of TempMax map
+    Tmax_1d = pcr.pcr2numpy(TempMax, self.MV).flatten()
+    Tmax = pd.DataFrame(
+        data={"MOD_Tmax": Tmax_1d[self.GlacierKeys]}, index=self.ModelID_1d[self.GlacierKeys]
+    )
+    self.GlacTable.update(Tmax)
+    Tmax = None
+    Tmax_1d = None
+    del Tmax, Tmax_1d
     # -lapse temperature for glaciers
     lapse = self.TLapse.at[self.curdate.month]  # scalar float, no deprecation
-    self.GlacTable["GLAC_T"] = (
-        self.GlacTable["MOD_T"]
-        - (self.GlacTable["MOD_H"] - self.GlacTable["GLAC_H"]) * lapse
-    )
+    elev_diff = self.GlacTable["MOD_H"] - self.GlacTable["GLAC_H"]
+    self.GlacTable["GLAC_T"] = self.GlacTable["MOD_T"] - elev_diff * lapse
+    self.GlacTable["GLAC_Tmin"] = self.GlacTable["MOD_Tmin"] - elev_diff * lapse
+    self.GlacTable["GLAC_Tmax"] = self.GlacTable["MOD_Tmax"] - elev_diff * lapse
     # -1 dim array of Precip map
     P_1d = pcr.pcr2numpy(Precip, self.MV).flatten()
     P = pd.DataFrame(
@@ -281,43 +304,64 @@ def dynamic(self, pcr, pd, Temp, Precip):
     P = None
     P_1d = None
     del P, P_1d
-    # -Snow and rain differentiation
+    # -Snow and rain differentiation (zero both before conditional assignment)
+    self.GlacTable["Rain_GLAC"] = 0.0
+    self.GlacTable["Snow_GLAC"] = 0.0
     mask = self.GlacTable["GLAC_T"] >= self.Tcrit
     self.GlacTable.loc[mask, "Rain_GLAC"] = self.GlacTable.loc[mask, "Prec_GLAC"]
     self.GlacTable.loc[np.invert(mask), "Snow_GLAC"] = self.GlacTable.loc[
         np.invert(mask), "Prec_GLAC"
     ]
-    # -Set the melting temperature (=>0)
-    Tmelt = np.maximum(self.GlacTable["GLAC_T"], 0)
-    # -Snow melt
-    self.GlacTable["PotSnowMelt_GLAC"] = Tmelt * self.DDFS
+    # -Compute sinusoidal cold fraction and positive degree-hours for glacier cells
+    # T(h) = (Tmax+Tmin)/2 + (Tmax-Tmin)/2 * cos(pi * h / 12)
+    glac_tmin = self.GlacTable["GLAC_Tmin"].values
+    glac_tmax = self.GlacTable["GLAC_Tmax"].values
+    t_mid = (glac_tmax + glac_tmin) / 2
+    t_amp = (glac_tmax - glac_tmin) / 2
+    hours_warm = np.zeros(len(glac_tmax))
+    thour = np.zeros(len(glac_tmax))
+    for ij in range(1, 25):
+        t_hour = t_mid + t_amp * np.cos(3.1415 * ij / 12)
+        hours_warm += (t_hour >= 0).astype(float)
+        thour += np.maximum(0, t_hour)
+    self.GlacTable["FracCold_GLAC"] = 1.0 - hours_warm / 24.0
+    # -Effective melt temperature from sinusoidal (used for both snow and glacier melt)
+    Tmelt = pd.Series(thour / 24, index=self.GlacTable.index)
+    # -Snow melt (sinusoidal degree-hours)
+    self.GlacTable["PotSnowMelt_GLAC"] = np.where(
+        glac_tmax < 0, 0, Tmelt * self.DDFS
+    )
     self.GlacTable["ActSnowMelt_GLAC"] = np.minimum(
         self.GlacTable["SnowStore_GLAC"], self.GlacTable["PotSnowMelt_GLAC"]
     )
+    # -Binary refreeze: if GLAC_T < Tcrit, all liquid water refreezes (consistent with snow module and SPHY 3.0)
+    # Includes same-day ActSnowMelt (may be >0 on cold-avg days when Tmax>=0 due to sinusoidal melt)
+    freeze_mask = self.GlacTable["GLAC_T"] < self.Tcrit
+    refreeze = (self.GlacTable["SnowWatStore_GLAC"] + self.GlacTable["ActSnowMelt_GLAC"]).where(freeze_mask, 0.0)
     # -Update snow store
     self.GlacTable["OldSnowStore_GLAC"] = self.GlacTable["SnowStore_GLAC"]
     self.GlacTable["SnowStore_GLAC"] = (
         self.GlacTable["SnowStore_GLAC"]
         + self.GlacTable["Snow_GLAC"]
         - self.GlacTable["ActSnowMelt_GLAC"]
-    )
-    self.GlacTable.loc[self.GlacTable["GLAC_T"] < 0.0, "SnowStore_GLAC"] = (
-        self.GlacTable.loc[self.GlacTable["GLAC_T"] < 0.0, "SnowStore_GLAC"]
-        + self.GlacTable.loc[self.GlacTable["GLAC_T"] < 0.0, "SnowWatStore_GLAC"]
+        + refreeze
     )
     # -Caclulate the maximum amount of water that can be stored in snowwatstore
     self.GlacTable["MaxSnowWatStore_GLAC"] = (
         self.SnowSC * self.GlacTable["SnowStore_GLAC"]
     )
     self.GlacTable["OldSnowWatStore_GLAC"] = self.GlacTable["SnowWatStore_GLAC"]
-    # -Calculate the actual amount of water stored in snowwatstore
-    self.GlacTable["SnowWatStore_GLAC"] = np.minimum(
-        self.GlacTable["MaxSnowWatStore_GLAC"],
-        self.GlacTable["SnowWatStore_GLAC"]
-        + self.GlacTable["ActSnowMelt_GLAC"]
-        + self.GlacTable["Rain_GLAC"],
+    # -Calculate the actual amount of water stored in snowwatstore (binary: GLAC_T < Tcrit → 0)
+    self.GlacTable["SnowWatStore_GLAC"] = np.where(
+        freeze_mask,
+        0.0,
+        np.minimum(
+            self.GlacTable["MaxSnowWatStore_GLAC"],
+            np.maximum(0, self.GlacTable["SnowWatStore_GLAC"]
+            - refreeze
+            + self.GlacTable["ActSnowMelt_GLAC"]
+            + self.GlacTable["Rain_GLAC"]))
     )
-    self.GlacTable.loc[self.GlacTable["GLAC_T"] < 0.0, "SnowWatStore_GLAC"] = 0
     # -Changes in total water storage in snow (SnowStore and SnowWatStore)
     self.GlacTable["OldTotalSnowStore_GLAC"] = self.GlacTable["TotalSnowStore_GLAC"]
     self.GlacTable["TotalSnowStore_GLAC"] = (
@@ -337,12 +381,12 @@ def dynamic(self, pcr, pd, Temp, Precip):
             - self.GlacTable.loc[mask, "OldSnowWatStore_GLAC"]
         )
     )
-    self.GlacTable.loc[np.invert(mask), "SnowR_GLAC"] = 0
+    self.GlacTable.loc[np.invert(mask), "SnowR_GLAC"] = 0.0
     mask = None
     del mask
 
     # -Glacier melt
-    self.GlacTable["GlacMelt"] = 0  # -first set to 0 then update hereafter
+    self.GlacTable["GlacMelt"] = 0.0  # -first set to 0 then update hereafter
     # -Masks for full glacier melt (=no snow melt in timestep) and partial glacier melt (=where snowpack is fully melted within timestep)
     partialMelt = (self.GlacTable["OldSnowStore_GLAC"] > 0.0) & (
         self.GlacTable["SnowStore_GLAC"] == 0
@@ -636,11 +680,16 @@ def dynamic_reporting(self, pcr, pd, np):
         GlacFracTable.loc[negDistMask, "Ice_redist"] = -GlacFracTable.loc[
             negDistMask, "Accumulation"
         ]
+        ablation_group = GlacFracTable.loc[posDistMask, "V_ice_ablation_group"]
+        safe_denom = ablation_group.where(ablation_group != 0, 1.0)
         GlacFracTable.loc[posDistMask, "Ice_redist"] = (
             GlacFracTable.loc[posDistMask, "V_ice_ablation"]
-            / GlacFracTable.loc[posDistMask, "V_ice_ablation_group"]
+            / safe_denom
             * GlacFracTable.loc[posDistMask, "Accumulation_group"]
         )
+        zero_mask = ablation_group == 0
+        if zero_mask.any():
+            GlacFracTable.loc[zero_mask[zero_mask].index, "Ice_redist"] = 0.0
         # -Update ice volume
         GlacFracTable["V_ice_t1"] = (
             GlacFracTable["V_ice_t0"]
@@ -686,12 +735,17 @@ def dynamic_reporting(self, pcr, pd, np):
         GlacID_grouped = None
         del GlacID_grouped
         # -Calculate the ice redistribution
+        safe_pos_group = GlacFracTable["V_ice_positive_group"].where(
+            GlacFracTable["V_ice_positive_group"] != 0, 1.0
+        )
         GlacFracTable["Ice_redist"] = (
             GlacFracTable["V_ice_positive"]
-            / GlacFracTable["V_ice_positive_group"]
+            / safe_pos_group
             * GlacFracTable["V_ice_negative_group"]
         )
-        GlacFracTable["Ice_redist"] = GlacFracTable["Ice_redist"].fillna(0.0)
+        GlacFracTable.loc[
+            GlacFracTable["V_ice_positive_group"] == 0, "Ice_redist"
+        ] = 0.0
         # -Remove unnecessary columns
         GlacFracTable = GlacFracTable.drop(
             [
@@ -706,10 +760,12 @@ def dynamic_reporting(self, pcr, pd, np):
         GlacFracTable["V_ice_t2"] = np.maximum(
             0.0, GlacFracTable["V_ice_t1"] + GlacFracTable["Ice_redist"]
         )
-        # -Update ice thickness
-        GlacFracTable["ICE_DEPTH_new"] = GlacFracTable["V_ice_t2"] / (
-            GlacFracTable["FRAC_GLAC"] * self.cellArea
+        # -Update ice thickness (guard against FRAC_GLAC=0)
+        safe_frac_area = (GlacFracTable["FRAC_GLAC"] * self.cellArea).where(
+            GlacFracTable["FRAC_GLAC"] > 0, 1.0
         )
+        GlacFracTable["ICE_DEPTH_new"] = GlacFracTable["V_ice_t2"] / safe_frac_area
+        GlacFracTable.loc[GlacFracTable["FRAC_GLAC"] == 0, "ICE_DEPTH_new"] = 0.0
         noIceMask = (
             GlacFracTable["ICE_DEPTH_new"] <= 0.0
         )  # it can be that melt is greater than total available ice: that results in balance error

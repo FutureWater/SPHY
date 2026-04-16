@@ -1,6 +1,6 @@
 # The Spatial Processes in HYdrology (SPHY) model:
 # A spatially distributed hydrological model
-# Copyright (C) 2013-2025  FutureWater
+# Copyright (C) 2013-2026  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
@@ -23,11 +23,33 @@
 print("snow module imported")
 
 
-# -Function to calculate the potential snow melt
-def PotSnowMelt(pcr, temp, tempmax, ddfs):
+# -Function to calculate the cold/warm fractions from sinusoidal hourly temperature
+def ColdWarmFractions(pcr, tempmin, tempmax):
+    """Compute fraction of the day below/above 0C using sinusoidal interpolation.
+    T(h) = (Tmax+Tmin)/2 + (Tmax-Tmin)/2 * cos(pi * h / 12), h=1..24
+    Returns (frac_cold, frac_warm) where frac_cold + frac_warm = 1
+    """
+    t_mid = (tempmax + tempmin) / 2
+    t_amp = (tempmax - tempmin) / 2
+    hours_warm = pcr.scalar(0)
+    for ij in range(1, 25, 1):
+        t_hour = t_mid + t_amp * pcr.cos(3.1415 * ij / 12)
+        hours_warm = hours_warm + pcr.ifthenelse(
+            t_hour >= 0, pcr.scalar(1), pcr.scalar(0)
+        )
+    frac_warm = hours_warm / 24
+    frac_cold = 1 - frac_warm
+    return frac_cold, frac_warm
+
+
+# -Function to calculate the potential snow melt (uses positive degree-hours)
+def PotSnowMelt(pcr, tempmin, tempmax, ddfs):
+    """T(h) = (Tmax+Tmin)/2 + (Tmax-Tmin)/2 * cos(pi * h / 12)"""
+    t_mid = (tempmax + tempmin) / 2
+    t_amp = (tempmax - tempmin) / 2
     thour = pcr.scalar(0)
     for ij in range(1, 25, 1):
-        th_max = pcr.max(0, (temp + (tempmax - temp) * pcr.cos(3.1415 * ij / 12)))
+        th_max = pcr.max(0, t_mid + t_amp * pcr.cos(3.1415 * ij / 12))
         thour = thour + th_max
     melt = thour * ddfs / 24
     return melt
@@ -39,15 +61,15 @@ def ActSnowMelt(pcr, snowstore, potmelt):
     return melt
 
 
-# -Function that updates the snow storage
-def SnowStoreUpdate(pcr, snowstore, snow, actmelt, temp, snowwatstore):
-    snowstore = (
-        snowstore
-        + snow
-        - actmelt
-        + pcr.ifthenelse(temp < 0, pcr.scalar(snowwatstore), 0)
-    )
-    return snowstore
+# -Function that updates the snow storage (binary refreeze based on Tavg)
+def SnowStoreUpdate(pcr, snowstore, snow, actmelt, temp, tcrit, snowwatstore):
+    # Refreeze: if daily average temp < Tcrit, all liquid water refreezes
+    # This includes both existing SWS and freshly melted water (ActMelt may be >0
+    # on cold-average days when TempMax >= 0, due to sinusoidal hourly melt).
+    # Without including ActMelt, the melted water disappears from the water balance.
+    refreeze = pcr.ifthenelse(temp < tcrit, snowwatstore + actmelt, pcr.scalar(0))
+    snowstore = snowstore + snow - actmelt + refreeze
+    return snowstore, refreeze
 
 
 # -Function that determines the maximum amount of water that can be stored in the snowpack
@@ -56,10 +78,16 @@ def MaxSnowWatStorage(snowsc, snowstore):
     return maxsnowwatstore
 
 
-# -Function to calculate the actual snow water storage
-def SnowWatStorage(pcr, temp, maxsnowwatstore, snowwatstore, actmelt, rain):
+# -Function to calculate the actual snow water storage (binary thaw based on Tavg)
+def SnowWatStorage(
+    pcr, temp, tcrit, maxsnowwatstore, snowwatstore, actmelt, rain, refreeze
+):
+    # If Tavg < Tcrit: all liquid water was refrozen, SWS = 0
+    # If Tavg >= Tcrit: remove refrozen water (=0), add melt and rain, cap at max
     snowwatstore = pcr.ifthenelse(
-        temp < 0, 0, pcr.min(maxsnowwatstore, snowwatstore + actmelt + rain)
+        temp < tcrit,
+        pcr.scalar(0),
+        pcr.min(maxsnowwatstore, pcr.max(0, snowwatstore - refreeze + actmelt + rain)),
     )
     return snowwatstore
 
@@ -111,6 +139,7 @@ def dynamic(
     self,
     pcr,
     Temp,
+    TempMin,
     TempMax,
     Precip,
     Snow_GLAC,
@@ -127,9 +156,9 @@ def dynamic(
     self.reporting.reporting(
         self, pcr, "TotSnowF", Snow * (1 - self.GlacFrac) + Snow_GLAC
     )
-    # -Snow melt sonu added
+    # -Snow melt (uses positive degree-hours from sinusoidal of Tmin/Tmax)
     PotSnowMelt = pcr.ifthenelse(
-        TempMax < 0, 0, self.snow.PotSnowMelt(pcr, Temp, TempMax, self.DDFS)
+        TempMax < 0, 0, self.snow.PotSnowMelt(pcr, TempMin, TempMax, self.DDFS)
     )
     ActSnowMelt = self.snow.ActSnowMelt(pcr, self.SnowStore, PotSnowMelt)
     # -Report snow melt for entire cell (snow+glacier fraction)
@@ -137,16 +166,23 @@ def dynamic(
     self.reporting.reporting(
         self, pcr, "TotSnowMeltF", ActSnowMelt * (1 - self.GlacFrac) + ActSnowMelt_GLAC
     )
-    # -Update snow store
-    self.SnowStore = self.snow.SnowStoreUpdate(
-        pcr, self.SnowStore, Snow, ActSnowMelt, Temp, self.SnowWatStore
+    # -Update snow store (binary refreeze: if Tavg < Tcrit, all liquid water refreezes)
+    self.SnowStore, Refreeze = self.snow.SnowStoreUpdate(
+        pcr, self.SnowStore, Snow, ActSnowMelt, Temp, self.Tcrit, self.SnowWatStore
     )
     # -Caclulate the maximum amount of water that can be stored in snowwatstore
     MaxSnowWatStore = self.snow.MaxSnowWatStorage(self.SnowSC, self.SnowStore)
     OldSnowWatStore = self.SnowWatStore
-    # -Calculate the actual amount of water stored in snowwatstore
+    # -Calculate the actual amount of water stored in snowwatstore (binary: Tavg < Tcrit → 0)
     self.SnowWatStore = self.snow.SnowWatStorage(
-        pcr, TempMax, MaxSnowWatStore, self.SnowWatStore, ActSnowMelt, Rain
+        pcr,
+        Temp,
+        self.Tcrit,
+        MaxSnowWatStore,
+        self.SnowWatStore,
+        ActSnowMelt,
+        Rain,
+        Refreeze,
     )
     # -Changes in total water storage in snow (SnowStore and SnowWatStore)
     OldTotalSnowStore = self.TotalSnowStore

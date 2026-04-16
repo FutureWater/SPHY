@@ -1,6 +1,6 @@
 # The Spatial Processes in HYdrology (SPHY) model:
 # A spatially distributed hydrological model
-# Copyright (C) 2013-2025  FutureWater
+# Copyright (C) 2013-2026  FutureWater
 # Email: sphy@futurewater.nl
 #
 # Authors (alphabetical order):
