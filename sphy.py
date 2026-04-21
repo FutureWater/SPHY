@@ -245,8 +245,9 @@ class sphy(pcrm.DynamicModel):
 			#-check if rooting depth exists in the configuration file, otherwise assign 1 to each cell
 			if config.has_option('PWS', 'RootingDepth'):
 				RootingDepth = self.inpath + config.get('PWS', 'RootingDepth')
-				self.RootDepthFrac = config.getfloat('PWS', 'RootDepthFrac')
-				self.RootDepthFlat = pcr.lookupscalar(RootingDepth, self.LandUse) * 1e3 * self.RootDepthFrac
+				if not RootingDepth == self.inpath:
+					self.RootDepthFrac = config.getfloat('PWS', 'RootDepthFrac')
+					self.RootDepthFlat = pcr.lookupscalar(RootingDepth, self.LandUse) * 1e3 * self.RootDepthFrac
 
 		#-calculate soil properties
 		self.RootField = self.RootFieldMap * self.RootDepthFlat
