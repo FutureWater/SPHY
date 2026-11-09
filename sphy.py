@@ -145,6 +145,7 @@ class sphy(pcrm.DynamicModel):
 		self.RootDryFrac = config.getfloat('SOIL_CAL', 'RootDryFrac')
 		self.RootWiltFrac = config.getfloat('SOIL_CAL', 'RootWiltFrac')
 		self.RootKsatFrac = config.getfloat('SOIL_CAL', 'RootKsatFrac')
+		self.input.input(self, config, pcr, 'Anisotropy', 'SOIL_CAL', 'Anisotropy', 1)
 
 		#-read maps and parameters for conservation
 		if self.ConservationFLAG == 1:
@@ -471,15 +472,11 @@ class sphy(pcrm.DynamicModel):
 		#-read maps and parameters for infiltration excess
 		self.InfilFLAG = config.getfloat('INFILTRATION', 'Infil_excess')
 		if self.InfilFLAG == 1:
-			self.K_eff = config.getfloat('INFILTRATION', 'K_eff')
+			self.Ksat_frac = config.getfloat('INFILTRATION', 'Ksat_frac')
 			try:
 				self.Alpha = config.getfloat('INFILTRATION', 'Alpha')
 			except:
 				self.Alpha = pcr.readmap(self.inpath + config.get('INFILTRATION', 'Alpha'))
-			try:
-				self.Labda_Infil = config.getfloat('INFILTRATION', 'Labda_infil')
-			except:
-				self.Labda_Infil = pcr.readmap(self.inpath + config.get('INFILTRATION', 'Labda_infil'))
 			try:
 				self.paved_table = self.inpath + config.get('INFILTRATION','PavedFrac')
 				self.pavedFrac = pcr.lookupscalar(self.paved_table, self.LandUse)
@@ -523,7 +520,7 @@ class sphy(pcrm.DynamicModel):
 					del modules.morphodynamics
 
 					#-read init processes sediment transport
-					self.morphodynamics.init(self, pcr, pcrm, config, csv, np)
+					self.morphodynamics.init(self, pcr, config)
 
 		#-set the global option for radians
 		pcr.setglobaloption('radians')
@@ -821,7 +818,7 @@ class sphy(pcrm.DynamicModel):
 		self.RootWater = pcr.max(self.RootWater - ETact, 0)
 
 		#-Calculate drainage
-		temp_RootDrain = self.rootzone.RootDrainage(pcr, self.RootWater, self.RootDrain, self.RootField, self.RootSat, self.RootDrainVel, self.RootTT)
+		temp_RootDrain = self.rootzone.RootDrainage(self, pcr, self.RootWater, self.RootDrain, self.RootField, self.RootSat, self.RootDrainVel, self.RootTT)
 		#-Calculate percolation
 		temp_rootperc = self.rootzone.RootPercolation(pcr, self.RootWater, self.SubWater, self.RootField, self.RootTT, self.SubSat)
 		#-Total sum of water able to leave the soil
@@ -921,7 +918,7 @@ class sphy(pcrm.DynamicModel):
 		if self.LakeFLAG == 1 or self.ResFLAG == 1:
 			#-read dynamic processes advanced routing
 			if self.travelTimeFLAG == 1:
-				Q, self.flowVelocity, self.hydraulicRadius = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
+				Q, self.flowVelocity, self.hydraulicRadius = self.advanced_routing.dynamic(self, pcr, pcrm, config, self.ETOpenWater, PrecipTot)
 			else:
 				Q = self.advanced_routing.dynamic(self, pcr, pcrm, config, TotR, self.ETOpenWater, PrecipTot)
 
@@ -929,7 +926,7 @@ class sphy(pcrm.DynamicModel):
 		elif self.RoutFLAG == 1:
 			#-read dynamic processes normal routing
 			if self.travelTimeFLAG == 1:
-				Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr, TotR)
+				Q, self.flowVelocity, self.hydraulicRadius = self.travel_time_routing.dynamic(self, pcr)
 			else:
 				Q = self.routing.dynamic(self, pcr, TotR)
 			
