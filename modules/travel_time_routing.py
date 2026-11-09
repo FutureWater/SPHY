@@ -85,8 +85,34 @@ def rillDimensions(pcr, self):
 
     return rillWidth
 
+#-Function to determine the number of rills per cell based on discharge
+def rillHydraulics(pcr, self, Q, manningRill):
+    #-determine maximum flow area, maximum hydraulic radius and maximum discharge per cell for a single rill
+    self.rillMaxArea = self.rillWidth * self.rillDepth
+    self.rillMaxR = self.rillMaxArea / (self.rillWidth + 2.0 * self.rillDepth)
+    self.rillMaxQ = (1.0 / manningRill) * self.rillMaxArea * (self.rillMaxR ** (2.0/3.0)) * pcr.max(pcr.sqrt(self.slopeChannel), 0.01)
+
+    #-determine number of cells based on maximum discharge per rill and current discharge
+    N_rills = pcr.max(1.0, Q / pcr.max(self.rillMaxQ, 1e-10))
+
+    #-determine discharge per rill (can be lower than maximum discharge per rill in case of only 1 rill, which is the absolute minimum of rills)
+    self.Q_rill = pcr.max(Q, 1e-10) / N_rills
+    
+    #-determine flow area, water depth, wetted perimeter, hydraulic radius and flow velocity per rill
+    A_rill = (self.Q_rill * manningRill / pcr.max(pcr.sqrt(self.slopeChannel), 0.01)) ** 0.6
+    h_rill = A_rill / self.rillWidth
+    P_rill = self.rillWidth + (2.0 * h_rill)
+    R_rill = A_rill / P_rill
+    u_rill = self.Q_rill / pcr.max(A_rill, 1e-10)
+
+    #-determine the effective channel width, baed on the rill width and number of rills
+    self.channelWidth = pcr.ifthenelse(self.channelHillslope == 2, self.rillWidth * N_rills, self.channelWidth)
+
+    return u_rill, R_rill
+
+
 #-Function to rout water using the accuflux travel time algorithm
-def flow_velocity_iteration(self, pcr, qOld):
+def flow_velocity_iteration(self, pcr, QLoopOld):
     #-Set maximum absolute and relative differences to a high dummy value 
     diffAbsMax = 1e6
 
@@ -94,41 +120,13 @@ def flow_velocity_iteration(self, pcr, qOld):
     counter = 0
 
     #######################################################################################################################
-    #-While loop to obtain flow velocity
+    #-While loop to determine hydraulic variables through iteration
     while diffAbsMax > self.thresholdAbs and counter < self.maxIterations:
-        #-Increase counter
+        #-Add counter
         counter += 1
-
-        #-Determine flow velocity (m/day)
-        flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
-
-        #-Determine discharge (m3/s)
-        Q = pcr.accutraveltimefractionflux(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) / self.dT
-
-        #-Determine absolute difference (%) between current and previous discharge
-        diffAbs = pcr.abs(Q - qOld)
-
-        #-Determine flow velocity in m/s
-        u = pcr.max(flowVelocity / self.dT, 1e-5)
-
-        #-Store discharge to compare with the discharge of the next iteration
-        qOld = Q
-
-        #-Determine map maximum for absolute and relative maximum
-        diffAbsMax = pcr.cellvalue(pcr.mapmaximum(diffAbs), 1)[0]
-
-        #-Determine water depth (m)
-        self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
 
         #-Determine hillslope roughness and assign to hillslopes (both channel and floodplain)
         if self.ErosionFLAG and self.ErosionModel == 2:
-            #-determine areas that have been harvested
-            if self.harvest_FLAG:
-                self.Harvested = self.ones * 0
-                self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
-                self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
-                self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
-            
             #-Determine Manning's roughness for in-field deposition
             self.n_field, self.n_field_harvest = self.mmf.manningField(self, pcr, self.waterDepth)
 
@@ -157,13 +155,33 @@ def flow_velocity_iteration(self, pcr, qOld):
         self.manningChannel = pcr.ifthenelse(self.channelHillslope == 2, self.manningRillUpdate, self.manningChannel)
         self.manningFP = pcr.ifthenelse(self.channelHillslope == 2, self.manningHillslope, self.manningFP)
 
-        # #-Update channel manning when conservation module is used
-        # if self.SedTransFLAG:
-        #     if self.ConservationFLAG == 1:
-        #         self.manningChannel = pcr.ifthenelse(self.conservationMeasures != 0, self.n_TC_conservation, self.manningChannel)
-
-        #-Determine flow velocity (m/day)
+        #-Determine flow velocity (m/day) and hydraulic radius (m)
         flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
+
+        #-Determine discharge with travel time function
+        Q = pcr.accutraveltimefractionflux(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) / self.dT
+
+        #-Check convergence
+        diffAbs = pcr.abs(Q - QLoopOld)
+        diffAbsMax = pcr.cellvalue(pcr.mapmaximum(diffAbs), 1)[0]
+
+        #-Replace discharge estimate for comparison in next iteration
+        QLoopOld = Q
+
+        #-Determine velocity (m/s) and update water depth (m) for the next iteration
+        u = pcr.max(flowVelocity / self.dT, 1e-5)
+        self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
+
+        #-Determine flow velocity (m/day) and hydraulic radius (m)
+        flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
+
+        #-Determine flow velocity (m/s) and hydraulic radius (m) for rills 
+        self.u_rill, self.R_rill = self.travel_time_routing.rillHydraulics(pcr, self, Q, self.manningRillUpdate)
+
+        #-update existing hydraulic radius and flow velocity variables with values for rills (hillslopes)
+        hydraulicRadius = pcr.ifthenelse(self.channelHillslope == 2, self.R_rill, hydraulicRadius)
+        flowVelocity = pcr.ifthenelse(self.channelHillslope == 2, self.u_rill * self.dT, flowVelocity)
+        u = pcr.ifthenelse(self.channelHillslope == 2, self.u_rill, u)
 
     return Q, u, hydraulicRadius
 
@@ -178,23 +196,15 @@ def init(self, pcr, pcrm, config, np):
     self.input.input(self, config, pcr, 'floodplainWidth', 'ROUTING', 'floodplainWidth', pcr.celllength())
     self.input.input(self, config, pcr, 'channelHillslope', 'ROUTING', 'channelHillslope', 1)
     self.input.input(self, config, pcr, 'inundationThreshold', 'ROUTING', 'inundationThreshold', 0)
-
+    self.input.input(self, config, pcr, 'kx_lat', 'ROUTING', 'kx_lat', 1) 
+    self.input.input(self, config, pcr, 'kx_base', 'ROUTING', 'kx_base', 1) 
+    
     #-in case of a differentiation between channels and hillslopes
     if pcr.pcr2numpy(pcr.mapmaximum(self.channelHillslope), 1)[0, 0] == 2:
-        #-Set floodplain width to cell width for hillslope cells
-        self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
-
-        #-Set channel depth to small value for hillslope cells
-        self.channelDepth = pcr.ifthenelse(self.channelHillslope == 2, 1e-3, self.channelDepth)
-
-        #-Read min and max rill width
-        self.input.input(self, config, pcr, 'minRillWidth', 'ROUTING', 'minRillWidth', 0.05)
-        self.input.input(self, config, pcr, 'maxRillWidth', 'ROUTING', 'maxRillWidth', 0.3)
-
-        #-Determine rill width based on min and max and set rill depth equal to rill width
-        self.rillWidth = self.travel_time_routing.rillDimensions(pcr, self)
-        self.rillDepth = self.rillWidth
-
+        #-Read rill width and depth
+        self.input.input(self, config, pcr, 'rillWidth', 'ROUTING', 'rillWidth', 0.3)
+        self.input.input(self, config, pcr, 'rillDepth', 'ROUTING', 'rillDepth', 0.15)
+        
         #-Set floodplain width to cell width for hillslope cells
         self.floodplainWidth = pcr.ifthenelse(self.channelHillslope == 2, pcr.celllength(), self.floodplainWidth)
 
@@ -211,64 +221,66 @@ def init(self, pcr, pcrm, config, np):
     #-Calculate timestep used in the model (sec)
     self.dT = (3600 * 24)
 
-    #-Use windowaverage to smooth elevation of channel cells
-    self.channelSmooth = config.getint('ROUTING', 'channelSmooth')
-   
-    #-determine stream order of all channels
-    self.streamOrder = pcr.ifthen(self.channelHillslope == 1, pcr.streamorder(self.FlowDir))
-    
-    #-clump stream order map
-    self.clumpedStreamOrder = pcr.clump(self.streamOrder)
-
-    #-determine accuflux map
+    #-determine channel map
     self.channel = pcr.ifthen(self.channelHillslope == 1, self.ones)
-    self.accuflux = pcr.accuflux(self.FlowDir, 1)
 
-    #-determine number of channel segments
-    self.noChannelSegments = int(pcr.pcr2numpy(pcr.mapmaximum(pcr.scalar(self.clumpedStreamOrder)), -9999)[0, 0])
+    #### Smooth channel slope ####
+    #-determine LDD map for channels only
+    channel_LDD = pcr.lddmask(self.FlowDir, self.channelHillslope == 1)
+    
+    #-retrieve slope for channels
+    smoothed_slope = pcr.ifthen(self.channelHillslope == 1, self.Slope)
+    
+    #-create map with one's in channel
+    ones_map = pcr.ifthen(self.channelHillslope == 1, pcr.scalar(1.0))
 
-    #-initiate channel slope map
-    self.slopeChannel = self.ones * 0
+    #-for-loop to determine the smoothed slope using moving average using 50 iterations
+    for i in range(50):
+        
+        #-determine the downstream slope per cell and account for the outlet cell
+        slope_down = pcr.downstream(channel_LDD, smoothed_slope)
+        slope_down = pcr.cover(slope_down, smoothed_slope)
+        
+        #-determine the upstream slope per cell
+        sum_up = pcr.upstream(channel_LDD, smoothed_slope)
 
-    #-for-loop over each invidual channel segment
-    for segment in range(1, self.noChannelSegments + 1):
-        #-extract channel segment
-        self.channelSegment = pcr.ifthen(self.clumpedStreamOrder == segment, self.ones)
+        #-count upstream channel cells
+        count_up = pcr.upstream(channel_LDD, ones_map)
+        
+        #-if tributaries exist, average them. If headwater, keep own value
+        slope_up = pcr.ifthenelse(count_up > 0, sum_up / pcr.max(count_up, 1.0), smoothed_slope)
+        
+        #-determine smoothed slope using moving average
+        smoothed_slope = (slope_up + smoothed_slope + slope_down) / 3.0
 
-        #-while-loop over channel segments
-        while(pcr.pcr2numpy(pcr.maptotal(pcr.scalar(self.channelSegment)), -9999)[0, 0] > 0):
-            #-find cell with lowest accuflux value
-            self.upstreamChannel = pcr.ifthenelse((self.accuflux * self.channelSegment) == pcr.mapminimum(pcr.scalar(self.channelSegment) * self.accuflux), self.ones, self.ones * 0)
+    #-apply a minimum value to prevent negative values
+    smoothed_slope = pcr.max(smoothed_slope, 0.0001)
 
-            #-determine path from upstream cell to outlet
-            self.pathChannel = pcr.path(self.FlowDir, pcr.boolean(self.upstreamChannel))
-            
-            #-determine accumulated cells to outlet
-            self.accufluxPathOutlet = pcr.accuflux(pcr.ifthen(pcr.path(self.FlowDir, pcr.cover(pcr.boolean(self.upstreamChannel), 0)) == 1, self.FlowDir), 1)
-            
-            #-only get accuflux values for the path
-            self.accufluxPath = pcr.ifthen(self.pathChannel == 1, self.accufluxPathOutlet)
+    #-store in slopeChannel
+    self.slopeChannel = pcr.ifthenelse(self.channelHillslope == 1, smoothed_slope, self.Slope)
 
-            #-determine number of cells in path
-            self.cellsPathChannel = pcr.pcr2numpy(pcr.mapmaximum(self.accufluxPath), -9999)[0, 0]
+    #### Smooth hillslope slope ####
+    #-apply smooth hillslope cells
+    slopeHillslope = pcr.ifthen(self.channelHillslope == 2, self.slopeChannel)
 
-            #-determine if the length of the path is smaller than channel smooth criterium
-            if (self.cellsPathChannel < self.channelSmooth):
-                self.subPathChannel = self.pathChannel
-            else:
-                self.subPathChannel = pcr.rounddown(self.accufluxPath / ((self.cellsPathChannel + 1) / pcr.rounddown(self.cellsPathChannel / pcr.scalar(self.channelSmooth))))
-            
-            #-determine average slope in segment
-            self.pathChannelSlope = pcr.areaaverage(self.Slope, pcr.nominal(self.subPathChannel))
+    #-determine the slope in the two downstream located cells
+    slope_down1 = pcr.cover(pcr.downstream(self.FlowDir, slopeHillslope), slopeHillslope)
+    slope_down2 = pcr.cover(pcr.downstream(self.FlowDir, slope_down1), slope_down1)
 
-            #-add smoothed channel segment to map with all smoothed channels
-            self.slopeChannel = self.slopeChannel + pcr.cover(self.pathChannelSlope, 0) 
+    #-count how many cells flow directly into the current cell
+    up_count = pcr.upstream(self.FlowDir, pcr.scalar(1.0))
+    
+    #-determine the slope in the two upstream located cells
+    slope_up1 = pcr.ifthenelse(up_count > 0, 
+                                pcr.upstream(self.FlowDir, slopeHillslope) / up_count, 
+                                slopeHillslope)
+    slope_up2 = pcr.ifthenelse(up_count > 0, 
+                                pcr.upstream(self.FlowDir, slope_up1) / up_count, 
+                                slopeHillslope)
 
-            #-subtract path from channel segment map
-            self.channelSegment = pcr.ifthen(pcr.boolean(pcr.scalar(self.channelSegment) - pcr.scalar(self.pathChannel)) == 1, self.ones)
+    #-apply 5-cell moving average and store in slopeChannel
+    self.slopeChannel = pcr.ifthenelse(self.channelHillslope == 2, (slopeHillslope + slope_down1 + slope_down2 + slope_up1 + slope_up2) / 5.0, self.slopeChannel)
 
-    #-update channel slope
-    self.slopeChannel = pcr.ifthenelse(self.channelHillslope == 1, self.slopeChannel, self.Slope)
 
     #-Calculate slope to downstream neighbour (m/m) and channel length through cell (m)
     distanceToDownstreamCell = pcrm.distancetodownstreamcell(self.FlowDir)
@@ -279,6 +291,12 @@ def init(self, pcr, pcrm, config, np):
 
     if self.ResFLAG == 0 and self.LakeFLAG == 0:
         self.QFRAC = 1
+
+    #-Give each channel cell a unique value
+    self.ChannelIDs = pcr.uniqueid(pcr.boolean(self.channel))
+
+    #-Determine subcatchment for each channel cell
+    self.AquiferSubcatchments = pcr.subcatchment(self.FlowDir, pcr.nominal(pcr.cover(self.ChannelIDs, 0)))
 
 #-initial conditions routing
 def initial(self, pcr, config):
@@ -291,41 +309,83 @@ def initial(self, pcr, config):
     #-Determine initial channel storage (m3)
     self.channelStorage = self.waterDepth * self.channelWidth * self.dX
 
+    #-Set initial lateral storage to 0
+    self.LateralStorage = self.ones * 0
+
 #-dynamic routing processes
-def dynamic(self, pcr, TotR):
-    #-Update channelStorage by adding the total runoff (m3)
-    self.channelStorage += TotR * 0.001 * pcr.cellarea()
+def dynamic(self, pcr):
+    #-Add root drainage to lateral flow storage
+    self.LateralStorage += self.RootDR
+
+    #-Calculate the amount that is being released to the total runoff
+    lateralFlow = self.LateralStorage * (1.0 - self.kx_lat)
+
+    #-Update lateral flow storage
+    self.LateralStorage -= lateralFlow
+
+
+    #-Convert generated baseflow from mm to volume (m3)
+    BaseR_m3 = self.BaseR * 0.001 * pcr.cellarea()
+    
+    #-Determine subcatchment sum of base flow and concentrate them in the channel
+    BaseRSubcatchments_m3 = pcr.areatotal(BaseR_m3, self.AquiferSubcatchments) * pcr.cover(self.channel, 0)
+
+    #-Convert the released volume back to mm
+    baseFlow_mm = (BaseRSubcatchments_m3 / pcr.cellarea()) * 1000.0
+
+
+    #-Determine routed runoff
+    routedRunoff = self.RootRR + lateralFlow + baseFlow_mm + self.SnowR + self.GlacR
+
+    #-In case MMF is used
+    if self.ErosionFLAG and self.ErosionModel == 2:
+        #-determine areas that have been harvested
+        if self.harvest_FLAG:
+            self.Harvested = self.ones * 0
+            self.Harvested = pcr.ifthenelse(self.Harvest < self.Sowing, pcr.ifthenelse(pcr.pcrand(self.Harvest < self.curdate.timetuple().tm_yday, self.Sowing > self.curdate.timetuple().tm_yday), 1, self.Harvested), self.Harvested)
+            self.Harvested = pcr.ifthenelse(self.Harvest > self.Sowing, pcr.ifthenelse(pcr.pcror(self.curdate.timetuple().tm_yday > self.Harvest, self.curdate.timetuple().tm_yday < self.Sowing), 1, self.Harvested), self.Harvested)
+            self.Harvested = pcr.ifthenelse(self.Harvest == 0, 0, self.Harvested)
+
+    #-Update channel storage by adding the total runoff (m3)
+    self.channelStorage += routedRunoff * 0.001 * pcr.cellarea()
 
     #-Determine flow velocity (m/day)
-    flowVelocity, hydraulicRadius = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
+    flowVelocity_init, hydraulicRadius_init = self.travel_time_routing.flowVelocity(self, pcr, self.waterDepth)
 
-    # estimating channel discharge (m3/s)
-    Q = pcr.accutraveltimefractionflux(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) / self.dT
+    #-Estimate channel discharge (m3/s)
+    Q_init = pcr.accutraveltimefractionflux(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity_init), self.QFRAC) / self.dT
 
     #-Determine flow velocity for first iteration (m/s)
-    u = pcr.max(flowVelocity, 1e-0) / self.dT
-    
+    u_init = pcr.max(flowVelocity_init, 1e-0) / self.dT
+
+    #-Determine flow velocity (m/s) and hydraulic radius (m) for rills 
+    u_rill, R_rill = self.travel_time_routing.rillHydraulics(pcr, self, Q_init, self.manningRill)
+    hydraulicRadius_init = pcr.ifthenelse(self.channelHillslope == 2, R_rill, hydraulicRadius_init)
+    flowVelocity_init = pcr.ifthenelse(self.channelHillslope == 2, u_rill * self.dT, flowVelocity_init)
+    u_init = pcr.ifthenelse(self.channelHillslope == 2, u_rill, u_init)
+
     #-Determine water depth for first iteration (m)
-    self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q, u, self.channelDepth, self.channelWidth, self.floodplainWidth)
+    self.waterDepth = self.travel_time_routing.waterDepth(pcr, Q_init, u_init, self.channelDepth, self.channelWidth, self.floodplainWidth)
 
     #-Determine flow velocity (m/s), water depth (m) and resulting discharge (m3/s) through iteration
-    Q, u, hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q)
-    self.reporting.reporting(self, pcr, 'FlowV', u)
-    self.reporting.reporting(self, pcr, 'HydraulicRadius', hydraulicRadius)
-    self.reporting.reporting(self, pcr, 'WaterDepth', self.waterDepth)
-
-    #-Update inundation frequency
-    self.inundationFrequency = pcr.ifthenelse(self.waterDepth > (self.channelDepth + self.inundationThreshold), pcr.scalar(1), pcr.scalar(0))
-    self.reporting.reporting(self, pcr, 'InundationFreq', self.inundationFrequency)
+    Q, u, hydraulicRadius = self.travel_time_routing.flow_velocity_iteration(self, pcr, Q_init)
 
     #-Determine flow velocity in m/day
     flowVelocity = u * self.dT
 
-    #-Update channelStorage after routing (m3)
+    #-Update channel storage
     self.channelStorage = pcr.accutraveltimefractionstate(self.FlowDir, self.channelStorage, pcr.max(0.0, flowVelocity), self.QFRAC) 
 
-    #-Report discharge
+    #-Determine inundation frequency
+    self.inundationFrequency = pcr.ifthenelse(self.waterDepth > (self.channelDepth + self.inundationThreshold), pcr.scalar(1), pcr.scalar(0))
+
+    #-Reporting
+    self.reporting.reporting(self, pcr, 'FlowV', u)
+    self.reporting.reporting(self, pcr, 'HydraulicRadius', hydraulicRadius)
+    self.reporting.reporting(self, pcr, 'WaterDepth', self.waterDepth)
+    self.reporting.reporting(self, pcr, 'InundationFreq', self.inundationFrequency)
     self.reporting.reporting(self, pcr, 'QallRAtot', Q)
+
     if self.mm_rep_FLAG == 1 and self.QTOT_mm_FLAG == 1:
         self.QTOTSubBasinTSS.sample(((Q * 3600 * 24) / pcr.catchmenttotal(pcr.cellarea(), self.FlowDir)) * 1000)
                  
