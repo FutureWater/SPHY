@@ -23,15 +23,31 @@
 def RootRunoff(self, pcr, rainfrac, rain):
     #-Infiltration excess surface runoff
     if self.InfilFLAG == 1:
-        #-Infiltration capacity, scaled based on rootwater content and ksat and corrected for paved surface
-        Infil_cap = self.K_eff * self.RootKsat / 24 * (1 + ((self.RootSat - self.RootWater) / self.RootSat))**self.Labda_Infil
+        #-Determine absolute soil moisture deficit (mm)
+        RootW_deficit = pcr.max(0.0, self.RootSat - self.RootWater)
 
-        #-Infiltration
-        Infil_excess = pcr.ifthenelse((self.Alpha * rain) > Infil_cap, rain - ((self.Alpha * rain - Infil_cap)**2) / (self.Alpha**2 * rain), rain)
-        Saturated_excess = self.RootSat - self.RootWater
-        Infil = pcr.max(0, pcr.min(Infil_excess, Saturated_excess)) * (1-self.pavedFrac)
+        #-Prevent dividing by 0 for rain and saturated water content
+        rain = pcr.max(rain, 0.0001)
+        RootSat  = pcr.max(self.RootSat, 0.0001)
 
-        #-Surface runoff
+        #-Determine effective hydraulic conductivity
+        K_e = self.Ksat_frac * (self.RootKsat / 24.0)
+
+        #-Determine infiltration capacity
+        Infil_cap = K_e * (1.0 + (2.0 * self.Psi * RootW_deficit) / (RootSat * rain))
+
+        #-Determine peak rainfall intensity (mm/hr)
+        peak_intensity = self.Alpha * rain
+
+        #-Determine infiltration according to the infiltration excess mechanism
+        Infil_excess = pcr.ifthenelse(peak_intensity > Infil_cap, 
+                                      rain - ((peak_intensity - Infil_cap)**2) / (self.Alpha**2 * rain), 
+                                      rain)
+
+        #-Determine final infiltration rate
+        Infil = pcr.max(0, pcr.min(Infil_excess, RootW_deficit)) * (1-self.pavedFrac)
+
+        #-Determin surface runoff
         rootrunoff = rain - Infil
 
     #-Saturation excess surface runoff
@@ -47,11 +63,11 @@ def RootRunoff(self, pcr, rainfrac, rain):
     return rootrunoff, Infil
 
 #-Function to calculate rootzone drainage
-def RootDrainage(pcr, rootwater, rootdrain, rootfield, rootsat, drainvel, rootTT):
+def RootDrainage(self, pcr, rootwater, rootdrain, rootfield, rootsat, drainvel, rootTT):
     rootexcess = pcr.max(rootwater - rootfield, 0)
     rootexcessfrac = rootexcess / (rootsat - rootfield)
-    rootlat = rootexcessfrac * drainvel
-    rootdrainage = pcr.max(pcr.min(rootexcess, rootlat * (1-pcr.exp(-1/rootTT)) + rootdrain * pcr.exp(-1/rootTT)), 0)
+    rootlat = rootexcessfrac * drainvel * self.Anisotropy
+    rootdrainage = pcr.max(pcr.min(rootexcess, rootlat * (1-pcr.exp(-1/(rootTT / self.Anisotropy))) + rootdrain * pcr.exp(-1/(rootTT / self.Anisotropy))), 0)
     return rootdrainage
 
 #-Function to calculate rootzone percolation
