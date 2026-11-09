@@ -203,6 +203,9 @@ def init(self, pcr, config, csv, np):
         self.D50 = pcr.ifthenelse(self.RootClayMap + self.RootSiltMap < 0.5, self.deltaSilt + (self.deltaSand - self.deltaSilt) * (self.RootSandMap - 0.5) / self.RootSandMap, 0) + self.D50
     else:
         self.D50 = config.getfloat('SEDIMENT_TRANS', 'D50') * 1e-6
+    
+    #-Multiply the obtained transport capacity for rills with the K_TC calibration parameter
+    self.K_TC = 1
 
     #-determine roughness factor for mmf only
     if self.SedTransEquation == 6:
@@ -243,27 +246,50 @@ def init(self, pcr, config, csv, np):
         self.roughnessFactor = self.v_TC / self.v_b
 
 
-#-Determine transport capacity (g/l)
-def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
-    if SedTransEquation == 1: # Govers (1990)
-        c = ((D50 * 1e6 + 5) / 0.32)**(-0.6)
-        d = ((D50 * 1e6 + 5) / 300)**(0.25)
-        omega = self.flowVelocity * 100 * self.slopeChannel
-        omega_cr = self.omega_cr_Govers
-        TC_f = c * pcr.max(0, omega - omega_cr)**d * self.rho_s
-        TC = pcr.max(TC_f / (1 - TC_f/self.rho_s), 0)
-    elif SedTransEquation == 2: # Yalin (1963)
-        R = self.hydraulicRadius
+#-Determine transport capacity for the channels (g/l)
+def CapacityChannel(self, pcr, rho, rho_s, g, h, R, w, Q, u, D50, S, SedTransEquation):
+    if SedTransEquation == 1: # Yalin (1963)
         s = rho_s / rho
         Y = (R * S) / (D50 * (s-1))
         U_star = pcr.sqrt(g * R * S)
         Y_cr = self.Y_cr_Yalin
-        ar = 2.45 / S**0.4 * pcr.sqrt(pcr.max(Y_cr * (Y / Y_cr - 1), 1e-10))
+        ar = 2.45 / s**0.4 * pcr.sqrt(pcr.max(Y_cr * (Y / Y_cr - 1), 1e-10))
         P = 0.635 * (Y / Y_cr - 1) * (1 - (pcr.ln(1 + ar)) / ar)
         qs = (rho_s - rho) * D50 * U_star * P
         TC = qs * w / pcr.max(Q, 1e-10)
-    elif SedTransEquation == 3: # Abrahams et al. (2001)
-        R = self.hydraulicRadius
+    elif SedTransEquation == 2: # Wong and Parker (2006)
+        R = (rho_s / rho) - 1
+        tau_star = (S * h) / (R * D50)
+        alpha = 3.97
+        beta = 1.5
+        tau_c = self.tau_c_Wong
+        q_star = alpha * pcr.max(tau_star - tau_c, 0)**beta
+        qb = q_star * (R * g * D50)**0.5 * D50
+        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
+    elif SedTransEquation == 3: # Wilcock and Crowe (2003)
+        s = (rho_s / rho)
+        tau_rm_star = 0.021 + 0.015 * pcr.exp(-20 * self.RootSandMap)
+        tau_rm = tau_rm_star * (s-1) * rho * g * self.D50
+        b = 0.67 / (1 + pcr.exp(1.5 - D50 / self.D50))
+        tau_r = tau_rm * (D50 / self.D50)**b
+        tau = rho * g * h * S
+        phi = tau / tau_r
+        W = pcr.ifthenelse(phi < 1.35, 0.002 * phi**7.5, 14 * (1 - 0.894/(phi**0.5))**4.5)
+        u_star = (tau / rho)**0.5
+        qb = (W * u_star**3) / ((s-1) * g)
+        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
+    return TC
+
+#-Determine transport capacity for the rills (g/l)
+def CapacityRill(self, pcr, rho, rho_s, g, R, w, Q, u, D50, S, SedTransEquation):
+    if SedTransEquation == 1: # Govers (1990)
+        c = ((D50 * 1e6 + 5) / 0.32)**(-0.6)
+        d = ((D50 * 1e6 + 5) / 300)**(0.25)
+        omega = u * 100 * S
+        omega_cr = self.omega_cr_Govers
+        TC_f = c * pcr.max(0, omega - omega_cr)**d * self.rho_s
+        TC = pcr.max(TC_f / (1 - TC_f/self.rho_s), 0)
+    elif SedTransEquation == 2: # Abrahams et al. (2001)
         s = rho_s / rho
         Y = pcr.max((R * S) / (D50 * (s-1)), 1e-10)
         U_star = pcr.max(pcr.sqrt(g * R * S), 1e-10)
@@ -275,28 +301,7 @@ def Capacity(self, pcr, rho, rho_s, g, h, w, Q, D50, S, SedTransEquation):
         c = 1 + 0.42 * (Cr/Dr)**0.2
         w_i = (g * (s - 1) * D50)**0.5
         d = pcr.ifthenelse((w_i / U_star) > 3, pcr.scalar(0), -0.5)
-        qb = a * D50 * U_star * Y * pcr.max(1 - Y_cr / Y, 0)**b * (self.flowVelocity / U_star)**c * (w_i / U_star)**d
-        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
-    elif SedTransEquation == 4: # Wong and Parker (2006)
-        R = (rho_s / rho) - 1
-        tau_star = (S * h) / (R * D50)
-        alpha = 3.97
-        beta = 1.5
-        tau_c = self.tau_c_Wong
-        q_star = alpha * pcr.max(tau_star - tau_c, 0)**beta
-        qb = q_star * (R * g * D50)**0.5 * D50
-        TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
-    elif SedTransEquation == 5: # Wilcock and Crowe (2003)
-        s = (rho_s / rho)
-        tau_rm_star = 0.021 + 0.015 * pcr.exp(-20 * self.RootSandMap)
-        tau_rm = tau_rm_star * (s-1) * rho * g * self.D50
-        b = 0.67 / (1 + pcr.exp(1.5 - D50 / self.D50))
-        tau_r = tau_rm * (D50 / self.D50)**b
-        tau = rho * g * h * S
-        phi = tau / tau_r
-        W = pcr.ifthenelse(phi < 1.35, 0.002 * phi**7.5, 14 * (1 - 0.894/(phi**0.5))**4.5)
-        u_star = (tau / rho)**0.5
-        qb = (W * u_star**3) / ((s-1) * g)
+        qb = a * D50 * U_star * Y * pcr.max(1 - Y_cr / Y, 0)**b * (u / U_star)**c * (w_i / U_star)**d
         TC = (qb * w * rho_s) / pcr.max(Q, 1e-10)
     return TC
 
@@ -331,10 +336,13 @@ def dynamic(self, pcr, np, Q, Sed):
             D50 = getattr(self, "delta" + sedimentClass)
 
             #-Determine transport capacity of the flow in the channels (g/l)
-            TC = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquation)
+            TC = self.sediment_transport.CapacityChannel(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.hydraulicRadius, self.channelWidth, Q, self.flowVelocity, D50, self.slopeChannel, self.SedTransEquation)
 
             #-Determine transport capacity of the flow in the rills (g/l)
-            TC_Rills = self.sediment_transport.Capacity(self, pcr, self.rho, self.rho_s, self.g, self.waterDepth, self.channelWidth, Q, D50, self.slopeChannel, self.SedTransEquationRills)
+            TC_Rills = self.sediment_transport.CapacityRill(self, pcr, self.rho, self.rho_s, self.g, self.R_rill, self.rillWidth, self.Q_rill, self.u_rill, D50, self.slopeChannel, self.SedTransEquationRills)
+
+            #-Multiply TC with K_TC
+            TC_Rills = self.K_TC * TC_Rills
 
             #-Update transport capacity for the hillslopes
             TC = pcr.ifthenelse(self.channelHillslope == 2, TC_Rills, TC)
@@ -362,16 +370,23 @@ def dynamic(self, pcr, np, Q, Sed):
                     #-Multiply hillslope erosion by sediment class fraction
                     Sed = Sed * getattr(self, "Root" + sedimentClass + "Map")
 
-            #-determine sediment transport
+            #-determine available material
             if self.MorphodynamicsFLAG == 0:
                 #-determine total amount available for transport
                 material = Sed
+                potential_scour = self.ones * 0
             else:
-                #-determine initial sediment store
-                sedimentStoreInitial = getattr(self, "sedimentStoreInitial" + sedimentClass) #-reset channel storage to initial value
+                #-obtain sediment storage
+                sedimentStore = getattr(self, "sedimentStore" + sedimentClass)
+
+                #-take bed fraction for sediment class
+                bed_fraction = getattr(self, "bedFraction" + sedimentClass)
+                
+                #-determine potential scour based on bed fraction and active layer thickness
+                potential_scour = self.activeLayer * bed_fraction
 
                 #-determine total amount available for transport
-                material = sedimentStoreInitial + Sed
+                material = sedimentStore + Sed + potential_scour
 
             #-route sediment through the catchment
             sedYield, sedDep, sedFlux = self.sediment_transport.SedTrans(self, pcr, np, material, TC)
@@ -384,10 +399,19 @@ def dynamic(self, pcr, np, Q, Sed):
             #-determine sediment transport
             if self.MorphodynamicsFLAG == 1:
                 #-determine channel change
-                channelChange = sedDep - sedimentStoreInitial
+                channelChange = sedDep - (sedimentStore + potential_scour)
 
                 #-Assign channel change values to sediment class
                 setattr(self, "channelChange" + sedimentClass, channelChange)
+
+            #-determine sediment storage for next time step
+            if self.MorphodynamicsFLAG == 0:
+                sedimentStore = sedDep
+            else:
+                sedimentStore = pcr.max(0.0, sedDep - potential_scour)
+
+            #-store sediment storage per sediment class
+            setattr(self, "sedimentStore" + sedimentClass, sedimentStore)
 
         #-determine sum of transport capacity, deposition, yield and flux over the different sediment classes (ton/day)
         TC = self.TCClay + self.TCSilt + self.TCSand + self.TCGravel
