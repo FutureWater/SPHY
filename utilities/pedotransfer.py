@@ -35,15 +35,32 @@ def Field(pcr, self, sand, clay, OM, bulk):
     return field
 
 
+#-function to calculate the saturated minus field water content (SAT-33 kPa, %)
+def Sat_min_Field(pcr, self, sand, clay, OM, bulk):
+    #-SAT-33 kPa moisture, first solution, %v (Eq. 3)
+    SminField_first = 0.278 * sand + 0.034 * clay + 0.022 * OM - 0.018 * sand * OM - 0.027 * clay * OM - 0.584 * sand * clay + 0.078
+    #-SAT-33 kPa moisture, normal density, %v (Eq. 3)
+    SminField = SminField_first + (0.636 * SminField_first - 0.107)
+    return SminField
+
 #-function to calculate the saturated water content (0 kPa, %)
 def Sat(pcr, self, sand, clay, OM, bulk):
-    #-SAT-33 kPa moisture, first solution, %v (Eq. 3)
-    poros_first = 0.278 * sand + 0.034 * clay + 0.022 * OM - 0.018 * sand * OM - 0.027 * clay * OM - 0.584 * sand * clay + 0.078
-    #-SAT-33 kPa moisture, normal density, %v (Eq. 3)
-    poros = poros_first + (0.636 * poros_first - 0.107)
     #-Saturated moisture (0 kPa), normal density, %v (Eq. 5)
-    sat = poros + self.pedotransfer.Field(pcr, self, sand, clay, OM, bulk) - 0.097 * sand + 0.043
+    sat = self.pedotransfer.Sat_min_Field(pcr, self, sand, clay, OM, bulk) + self.pedotransfer.Field(pcr, self, sand, clay, OM, bulk) - 0.097 * sand + 0.043
     return sat
+
+
+#-function to calculate the tension at air entry
+def Wetting_from_suction(pcr, self, sand, clay, OM, bulk):
+    #-obtain saturated minus field water content
+    SminField = self.pedotransfer.Sat_min_Field(pcr, self, sand, clay, OM, bulk)
+
+    #-Tension at air entry, first solution, kPa (Eq. 4)
+    psi_et = -21.67 * sand - 27.93 * clay - 81.97 * SminField + 71.12 * (sand * SminField) + 8.29 * (clay * SminField) + 14.05 * (sand * clay) + 27.16
+
+    #-Tension at air entry (bubbling pressure), kPa (Eq. 4)
+    psi_e = pcr.max(0.5, psi_et + (0.02 * psi_et**2 - 0.113 * psi_et - 0.70))
+    return psi_e
 
 
 #-function to calculate the field capacity adjusted for density (33 kPa, %) and saturated water content adjusted for density (0 kPa, %)
@@ -121,7 +138,7 @@ def init(self, pcr, config, np):
     self.RootDryMap = self.RootDryMap * self.RootDryFrac
     self.RootKsat = self.pedotransfer.KSat(pcr, self, self.RootSandMap, self.RootClayMap, self.RootOMMap, self.RootBulkMap) * self.RootKsatFrac
     self.RootDrainVel = self.RootKsat * self.Slope
-
+    self.Psi = self.pedotransfer.Wetting_from_suction(pcr, self, self.RootSandMap, self.RootClayMap, self.RootOMMap, self.RootBulkMap) * 101.97
     temp = self.pedotransfer.FieldAdj(pcr, self, self.SubSandMap, self.SubClayMap, self.SubOMMap, self.SubBulkMap)
     self.SubFieldMap = temp[0]
     self.SubSatMap = temp[2]
